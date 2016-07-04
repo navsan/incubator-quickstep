@@ -89,7 +89,7 @@ void AggregationHandleMax::aggregateValueAccessorIntoHashTable(
   DCHECK_EQ(1u, argument_ids.size())
       << "Got wrong number of arguments for MAX: " << argument_ids.size();
 
-  aggregateValueAccessorIntoHashTableUnaryHelper<
+/*  aggregateValueAccessorIntoHashTableUnaryHelper<
       AggregationHandleMax,
       AggregationStateMax,
       AggregationStateHashTable<AggregationStateMax>>(
@@ -97,7 +97,7 @@ void AggregationHandleMax::aggregateValueAccessorIntoHashTable(
           argument_ids.front(),
           group_by_key_ids,
           AggregationStateMax(type_),
-          hash_table);
+          hash_table);*/
 }
 
 void AggregationHandleMax::mergeStates(
@@ -111,14 +111,26 @@ void AggregationHandleMax::mergeStates(
   }
 }
 
+void AggregationHandleMax::mergeStatesFast(
+    const std::uint8_t *source,
+    std::uint8_t *destination) const {
+    const TypedValue *src_max_ptr = reinterpret_cast<const TypedValue *>(source);
+    TypedValue *dst_max_ptr = reinterpret_cast<TypedValue *>(destination);
+    if (!(src_max_ptr->isNull())) {
+      compareAndUpdateFast(dst_max_ptr, *src_max_ptr);
+  }
+}
+
 ColumnVector* AggregationHandleMax::finalizeHashTable(
     const AggregationStateHashTableBase &hash_table,
-    std::vector<std::vector<TypedValue>> *group_by_keys) const {
-  return finalizeHashTableHelper<AggregationHandleMax,
-                                 AggregationStateHashTable<AggregationStateMax>>(
+    std::vector<std::vector<TypedValue>> *group_by_keys,
+    int index) const {
+  return finalizeHashTableHelperFast<AggregationHandleMax,
+                                 AggregationStateFastHashTable>(
       type_.getNullableVersion(),
       hash_table,
-      group_by_keys);
+      group_by_keys,
+      index);
 }
 
 AggregationState* AggregationHandleMax::aggregateOnDistinctifyHashTableForSingle(
@@ -144,9 +156,8 @@ void AggregationHandleMax::aggregateOnDistinctifyHashTableForGroupBy(
 void AggregationHandleMax::mergeGroupByHashTables(
     const AggregationStateHashTableBase &source_hash_table,
     AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelper<AggregationHandleMax,
-                               AggregationStateMax,
-                               AggregationStateHashTable<AggregationStateMax>>(
+  mergeGroupByHashTablesHelperFast<AggregationHandleMax,
+                               AggregationStateFastHashTable>(
       source_hash_table, destination_hash_table);
 }
 

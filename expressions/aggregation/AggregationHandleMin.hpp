@@ -29,6 +29,7 @@
 #include "expressions/aggregation/AggregationConcreteHandle.hpp"
 #include "expressions/aggregation/AggregationHandle.hpp"
 #include "storage/HashTableBase.hpp"
+#include "storage/FastHashTable.hpp"
 #include "threading/SpinMutex.hpp"
 #include "types/Type.hpp"
 #include "types/TypedValue.hpp"
@@ -63,6 +64,11 @@ class AggregationStateMin : public AggregationState {
    * @brief Destructor.
    */
   ~AggregationStateMin() override {}
+
+  size_t getPayloadSize() const {
+     return sizeof(TypedValue);
+  }
+
 
  private:
   friend class AggregationHandleMin;
@@ -104,6 +110,22 @@ class AggregationHandleMin : public AggregationConcreteHandle {
     compareAndUpdate(state, value);
   }
 
+  inline void iterateUnaryInlFast(const TypedValue &value, uint8_t *byte_ptr) {
+      DCHECK(value.isPlausibleInstanceOf(type_.getSignature()));
+      TypedValue *min_ptr = reinterpret_cast<TypedValue *>(byte_ptr);
+      compareAndUpdateFast(min_ptr, value);
+  }
+
+  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+    iterateUnaryInlFast(arguments.front(), byte_ptr);
+  }
+
+  void initPayload(uint8_t *byte_ptr) override {
+    TypedValue *min_ptr = reinterpret_cast<TypedValue *>(byte_ptr);
+    TypedValue t1 = (type_.getNullableVersion().makeNullValue());
+    *min_ptr = t1;
+  }
+
   AggregationState* accumulateColumnVectors(
       const std::vector<std::unique_ptr<ColumnVector>> &column_vectors) const override;
 
@@ -122,6 +144,9 @@ class AggregationHandleMin : public AggregationConcreteHandle {
   void mergeStates(const AggregationState &source,
                    AggregationState *destination) const override;
 
+  void mergeStatesFast(const uint8_t *source,
+                   uint8_t *destination) const override;
+
   TypedValue finalize(const AggregationState &state) const override {
     return static_cast<const AggregationStateMin&>(state).min_;
   }
@@ -130,9 +155,15 @@ class AggregationHandleMin : public AggregationConcreteHandle {
     return static_cast<const AggregationStateMin&>(state).min_;
   }
 
+  inline TypedValue finalizeHashTableEntryFast(const std::uint8_t *byte_ptr) const {
+    const TypedValue *min_ptr = reinterpret_cast<const TypedValue *>(byte_ptr);
+    return TypedValue(*min_ptr);
+  }
+
   ColumnVector* finalizeHashTable(
       const AggregationStateHashTableBase &hash_table,
-      std::vector<std::vector<TypedValue>> *group_by_keys) const override;
+      std::vector<std::vector<TypedValue>> *group_by_keys,
+      int index) const override;
 
   /**
    * @brief Implementation of AggregationHandle::aggregateOnDistinctifyHashTableForSingle()
@@ -152,6 +183,10 @@ class AggregationHandleMin : public AggregationConcreteHandle {
   void mergeGroupByHashTables(
       const AggregationStateHashTableBase &source_hash_table,
       AggregationStateHashTableBase *destination_hash_table) const override;
+
+  size_t getPayloadSize() const override {
+      return sizeof(TypedValue);
+  }
 
  private:
   friend class AggregateFunctionMin;
@@ -175,6 +210,13 @@ class AggregationHandleMin : public AggregationConcreteHandle {
     SpinMutexLock lock(state->mutex_);
     if (state->min_.isNull() || fast_comparator_->compareTypedValues(value, state->min_)) {
       state->min_ = value;
+    }
+  }
+
+  inline void compareAndUpdateFast(TypedValue *min_ptr, const TypedValue &value) const {
+    if (value.isNull()) return;
+    if (min_ptr->isNull() || fast_comparator_->compareTypedValues(value, *min_ptr)) {
+      *min_ptr = value;
     }
   }
 

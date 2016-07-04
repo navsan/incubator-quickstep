@@ -135,18 +135,18 @@ template <bool count_star, bool nullable_type>
   if (count_star) {
     DCHECK_EQ(0u, argument_ids.size())
         << "Got wrong number of arguments for COUNT(*): " << argument_ids.size();
-    aggregateValueAccessorIntoHashTableNullaryHelper<
+/*    aggregateValueAccessorIntoHashTableNullaryHelper<
         AggregationHandleCount<count_star, nullable_type>,
         AggregationStateCount,
         AggregationStateHashTable<AggregationStateCount>>(
             accessor,
             group_by_key_ids,
             AggregationStateCount(),
-            hash_table);
+            hash_table);*/
   } else {
     DCHECK_EQ(1u, argument_ids.size())
         << "Got wrong number of arguments for COUNT: " << argument_ids.size();
-    aggregateValueAccessorIntoHashTableUnaryHelper<
+/*    aggregateValueAccessorIntoHashTableUnaryHelper<
         AggregationHandleCount<count_star, nullable_type>,
         AggregationStateCount,
         AggregationStateHashTable<AggregationStateCount>>(
@@ -154,7 +154,7 @@ template <bool count_star, bool nullable_type>
             argument_ids.front(),
             group_by_key_ids,
             AggregationStateCount(),
-            hash_table);
+            hash_table); */
   }
 }
 
@@ -170,14 +170,25 @@ template <bool count_star, bool nullable_type>
 }
 
 template <bool count_star, bool nullable_type>
+void AggregationHandleCount<count_star, nullable_type>::mergeStatesFast(
+    const uint8_t *source,
+    uint8_t *destination) const {
+    const std::int64_t *src_count_ptr = reinterpret_cast<const std::int64_t *>(source);
+    std::int64_t *dst_count_ptr = reinterpret_cast<std::int64_t *>(destination);
+    (*dst_count_ptr) += (*src_count_ptr);
+}
+
+template <bool count_star, bool nullable_type>
     ColumnVector* AggregationHandleCount<count_star, nullable_type>::finalizeHashTable(
         const AggregationStateHashTableBase &hash_table,
-        std::vector<std::vector<TypedValue>> *group_by_keys) const {
-  return finalizeHashTableHelper<AggregationHandleCount<count_star, nullable_type>,
-                                 AggregationStateHashTable<AggregationStateCount>>(
+        std::vector<std::vector<TypedValue>> *group_by_keys,
+        int index) const {
+  return finalizeHashTableHelperFast<AggregationHandleCount<count_star, nullable_type>,
+                                 AggregationStateFastHashTable>(
       TypeFactory::GetType(kLong),
       hash_table,
-      group_by_keys);
+      group_by_keys,
+      index);
 }
 
 template <bool count_star, bool nullable_type>
@@ -197,12 +208,10 @@ void AggregationHandleCount<count_star, nullable_type>
         const AggregationStateHashTableBase &distinctify_hash_table,
         AggregationStateHashTableBase *aggregation_hash_table) const {
   DCHECK_EQ(count_star, false);
-  aggregateOnDistinctifyHashTableForGroupByUnaryHelper<
+  aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleCount<count_star, nullable_type>,
-      AggregationStateCount,
-      AggregationStateHashTable<AggregationStateCount>>(
+      AggregationStateFastHashTable>(
           distinctify_hash_table,
-          AggregationStateCount(),
           aggregation_hash_table);
 }
 
@@ -210,10 +219,9 @@ template <bool count_star, bool nullable_type>
 void AggregationHandleCount<count_star, nullable_type>::mergeGroupByHashTables(
     const AggregationStateHashTableBase &source_hash_table,
     AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelper<
+  mergeGroupByHashTablesHelperFast<
       AggregationHandleCount,
-      AggregationStateCount,
-      AggregationStateHashTable<AggregationStateCount>>(source_hash_table,
+      AggregationStateFastHashTable>(source_hash_table,
                                                         destination_hash_table);
 }
 

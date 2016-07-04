@@ -29,6 +29,7 @@
 #include "expressions/aggregation/AggregationConcreteHandle.hpp"
 #include "expressions/aggregation/AggregationHandle.hpp"
 #include "storage/HashTableBase.hpp"
+#include "storage/FastHashTable.hpp"
 #include "threading/SpinMutex.hpp"
 #include "types/Type.hpp"
 #include "types/TypedValue.hpp"
@@ -57,18 +58,27 @@ class AggregationStateSum : public AggregationState {
    */
   AggregationStateSum(const AggregationStateSum &orig)
       : sum_(orig.sum_),
-        null_(orig.null_) {
+        null_(orig.null_),
+        sum_offset(orig.sum_offset),
+        null_offset(orig.null_offset) {
   }
 
  private:
   friend class AggregationHandleSum;
 
   AggregationStateSum()
-      : sum_(0), null_(true) {
+      : sum_(0), null_(true), sum_offset(0),
+        null_offset(reinterpret_cast<uint8_t *>(&null_)-reinterpret_cast<uint8_t *>(&sum_)) {
   }
 
   AggregationStateSum(TypedValue &&sum, const bool is_null)
       : sum_(std::move(sum)), null_(is_null) {
+  }
+
+  size_t getPayloadSize() const {
+     size_t p1 = reinterpret_cast<size_t>(&sum_);
+     size_t p2 = reinterpret_cast<size_t>(&mutex_);
+     return (p2-p1);
   }
 
   // TODO(shoban): We might want to specialize sum_ to use atomics for int types
@@ -76,7 +86,10 @@ class AggregationStateSum : public AggregationState {
   TypedValue sum_;
   bool null_;
   SpinMutex mutex_;
+
+  int sum_offset, null_offset;
 };
+
 
 /**
  * @brief An aggregationhandle for sum.
@@ -105,6 +118,26 @@ class AggregationHandleSum : public AggregationConcreteHandle {
     state->null_ = false;
   }
 
+  inline void iterateUnaryInlFast(const TypedValue &value, uint8_t *byte_ptr) {
+    DCHECK(value.isPlausibleInstanceOf(argument_type_.getSignature()));
+    if (value.isNull()) return;
+    TypedValue *sum_ptr = reinterpret_cast<TypedValue *>(byte_ptr + blank_state_.sum_offset);
+    bool *null_ptr = reinterpret_cast<bool *>(byte_ptr + blank_state_.null_offset);
+    *sum_ptr = fast_operator_->applyToTypedValues(*sum_ptr, value);
+    *null_ptr = false;
+  }
+
+  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+     iterateUnaryInlFast(arguments.front(), byte_ptr);
+  }
+
+  void initPayload(uint8_t *byte_ptr) override {
+    TypedValue *sum_ptr = reinterpret_cast<TypedValue *>(byte_ptr + blank_state_.sum_offset);
+    bool *null_ptr = reinterpret_cast<bool *>(byte_ptr + blank_state_.null_offset);
+    *sum_ptr = blank_state_.sum_;
+    *null_ptr = true;
+  }
+
   AggregationState* accumulateColumnVectors(
       const std::vector<std::unique_ptr<ColumnVector>> &column_vectors) const override;
 
@@ -123,15 +156,24 @@ class AggregationHandleSum : public AggregationConcreteHandle {
   void mergeStates(const AggregationState &source,
                    AggregationState *destination) const override;
 
+  void mergeStatesFast(const uint8_t *source,
+                   uint8_t *destination) const override;
+
   TypedValue finalize(const AggregationState &state) const override;
 
   inline TypedValue finalizeHashTableEntry(const AggregationState &state) const {
     return static_cast<const AggregationStateSum&>(state).sum_;
   }
 
+  inline TypedValue finalizeHashTableEntryFast(const uint8_t *byte_ptr) const {
+    uint8_t *value_ptr = const_cast<uint8_t*>(byte_ptr);
+    TypedValue *sum_ptr = reinterpret_cast<TypedValue *>(value_ptr + blank_state_.sum_offset);
+    return *sum_ptr;
+  }
+
   ColumnVector* finalizeHashTable(
       const AggregationStateHashTableBase &hash_table,
-      std::vector<std::vector<TypedValue>> *group_by_keys) const override;
+      std::vector<std::vector<TypedValue>> *group_by_keys, int index) const override;
 
   /**
    * @brief Implementation of AggregationHandle::aggregateOnDistinctifyHashTableForSingle()
@@ -151,6 +193,10 @@ class AggregationHandleSum : public AggregationConcreteHandle {
   void mergeGroupByHashTables(
       const AggregationStateHashTableBase &source_hash_table,
       AggregationStateHashTableBase *destination_hash_table) const override;
+
+  size_t getPayloadSize() const override {
+      return blank_state_.getPayloadSize();
+  }
 
  private:
   friend class AggregateFunctionSum;

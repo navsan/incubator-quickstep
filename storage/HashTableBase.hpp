@@ -66,7 +66,7 @@ class HashTableBase {
  public:
   virtual ~HashTableBase() {
   }
-
+virtual size_t get_buckets_allocated() const {return 0;}
  protected:
   HashTableBase() {
   }

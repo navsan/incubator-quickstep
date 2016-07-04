@@ -31,6 +31,7 @@
 #include "types/TypedValue.hpp"
 #include "types/containers/ColumnVector.hpp"
 #include "utility/Macros.hpp"
+#include "threading/SpinMutex.hpp"
 
 #include "glog/logging.h"
 
@@ -77,6 +78,37 @@ class HashTableStateUpserter {
   const StateT &source_state_;
 
   DISALLOW_COPY_AND_ASSIGN(HashTableStateUpserter);
+};
+
+template <typename HandleT>
+class HashTableStateUpserterFast {
+ public:
+  /**
+   * @brief Constructor.
+   *
+   * @param handle The aggregation handle being used.
+   * @param source_state The aggregation state in the source aggregation hash
+   *        table. The corresponding state (for the same key) in the destination
+   *        hash table will be upserted.
+   **/
+  HashTableStateUpserterFast(const HandleT &handle, const uint8_t *source_state)
+      : handle_(handle), source_state_(source_state) {}
+
+  /**
+   * @brief The operator for the functor required for the upsert.
+   *
+   * @param destination_state The aggregation state in the aggregation hash
+   *        table that is being upserted.
+   **/
+  void operator()(uint8_t *destination_state) {
+    handle_.mergeStatesFast(source_state_, destination_state);
+  }
+
+ private:
+  const HandleT &handle_;
+  const uint8_t *source_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(HashTableStateUpserterFast);
 };
 
 /**
@@ -127,6 +159,53 @@ class HashTableMerger {
   HashTableT *destination_hash_table_;
 
   DISALLOW_COPY_AND_ASSIGN(HashTableMerger);
+};
+
+template <typename HandleT, typename HashTableT>
+class HashTableMergerFast {
+ public:
+  /**
+   * @brief Constructor
+   *
+   * @param handle The Aggregation handle being used.
+   * @param destination_hash_table The destination hash table to which other
+   *        hash tables will be merged.
+   **/
+  HashTableMergerFast(const HandleT &handle,
+                  AggregationStateHashTableBase *destination_hash_table)
+      : handle_(handle),
+        destination_hash_table_(
+            static_cast<HashTableT *>(destination_hash_table)) {}
+
+  /**
+   * @brief The operator for the functor.
+   *
+   * @param group_by_key The group by key being merged.
+   * @param source_state The aggregation state for the given key in the source
+   *        aggregation hash table.
+   **/
+  inline void operator()(const std::vector<TypedValue> &group_by_key,
+                         const uint8_t *source_state) {
+    const uint8_t *original_state =
+        destination_hash_table_->getSingleCompositeKey(group_by_key);
+    if (original_state != nullptr) {
+      HashTableStateUpserterFast<HandleT> upserter(
+          handle_, source_state);
+      // The CHECK is required as upsertCompositeKey can return false if the
+      // hash table runs out of space during the upsert process. The ideal
+      // solution will be to retry again if the upsert fails.
+      CHECK(destination_hash_table_->upsertCompositeKeyFast(
+          group_by_key, original_state, &upserter));
+    } else {
+      destination_hash_table_->putCompositeKeyFast(group_by_key, source_state);
+    }
+  }
+
+ private:
+  const HandleT &handle_;
+  HashTableT *destination_hash_table_;
+
+  DISALLOW_COPY_AND_ASSIGN(HashTableMergerFast);
 };
 
 /**
@@ -208,10 +287,25 @@ class AggregationConcreteHandle : public AggregationHandle {
 
   template <typename HandleT,
             typename HashTableT>
+  void aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast(
+      const AggregationStateHashTableBase &distinctify_hash_table,
+      AggregationStateHashTableBase *hash_table) const;
+
+
+  template <typename HandleT,
+            typename HashTableT>
   ColumnVector* finalizeHashTableHelper(
       const Type &result_type,
       const AggregationStateHashTableBase &hash_table,
       std::vector<std::vector<TypedValue>> *group_by_keys) const;
+
+  template <typename HandleT,
+            typename HashTableT>
+  ColumnVector* finalizeHashTableHelperFast(
+      const Type &result_type,
+      const AggregationStateHashTableBase &hash_table,
+      std::vector<std::vector<TypedValue>> *group_by_keys,
+      int index) const;
 
   template <typename HandleT, typename HashTableT>
   inline TypedValue finalizeGroupInHashTable(
@@ -224,10 +318,28 @@ class AggregationConcreteHandle : public AggregationHandle {
     return static_cast<const HandleT*>(this)->finalizeHashTableEntry(*group_state);
   }
 
+  template <typename HandleT, typename HashTableT>
+  inline TypedValue finalizeGroupInHashTableFast(
+      const AggregationStateHashTableBase &hash_table,
+      const std::vector<TypedValue> &group_key,
+      int index) const {
+    const std::uint8_t *group_state
+        = static_cast<const HashTableT&>(hash_table).getSingleCompositeKey(group_key, index);
+    DCHECK(group_state != nullptr)
+        << "Could not find entry for specified group_key in HashTable";
+    return static_cast<const HandleT*>(this)->finalizeHashTableEntryFast(group_state);
+  }
+
   template <typename HandleT, typename StateT, typename HashTableT>
   void mergeGroupByHashTablesHelper(
       const AggregationStateHashTableBase &source_hash_table,
       AggregationStateHashTableBase *destination_hash_table) const;
+
+  template <typename HandleT, typename HashTableT>
+  void mergeGroupByHashTablesHelperFast(
+      const AggregationStateHashTableBase &source_hash_table,
+      AggregationStateHashTableBase *destination_hash_table) const;
+
 
  private:
   DISALLOW_COPY_AND_ASSIGN(AggregationConcreteHandle);
@@ -300,6 +412,12 @@ class HashTableAggregateFinalizer {
                          const AggregationState &group_state) {
     group_by_keys_->emplace_back(group_by_key);
     output_column_vector_->appendTypedValue(handle_.finalizeHashTableEntry(group_state));
+  }
+
+  inline void operator()(const std::vector<TypedValue> &group_by_key,
+                         const unsigned char *byte_ptr) {
+    group_by_keys_->emplace_back(group_by_key);
+    output_column_vector_->appendTypedValue(handle_.finalizeHashTableEntryFast(byte_ptr));
   }
 
  private:
@@ -414,6 +532,42 @@ void AggregationConcreteHandle::aggregateOnDistinctifyHashTableForGroupByUnaryHe
 
 template <typename HandleT,
           typename HashTableT>
+void AggregationConcreteHandle::aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast(
+    const AggregationStateHashTableBase &distinctify_hash_table,
+    AggregationStateHashTableBase *aggregation_hash_table) const {
+  const HandleT& handle = static_cast<const HandleT&>(*this);
+  HashTableT *target_hash_table = static_cast<HashTableT*>(aggregation_hash_table);
+
+  // A lambda function which will be called on each key-value pair from the
+  // distinctify hash table.
+  const auto aggregate_functor = [&handle, &target_hash_table](
+      std::vector<TypedValue> &key,
+      const bool &dumb_placeholder) {
+    // For each (composite) key vector in the distinctify hash table with size N.
+    // The first N-1 entries are GROUP BY columns and the last entry is the argument
+    // to be aggregated on.
+    const TypedValue argument(std::move(key.back()));
+    key.pop_back();
+
+    // An upserter as lambda function for aggregating the argument into its
+    // GROUP BY group's entry inside aggregation_hash_table.
+    const auto upserter = [&handle, &argument](std::uint8_t *state) {
+      handle.iterateUnaryInlFast(argument, state+sizeof(SpinMutex));
+    };
+
+    target_hash_table->upsertCompositeKeyFast(key, nullptr, &upserter);
+  };
+
+  const HashTableT &source_hash_table =
+      static_cast<const HashTableT&>(distinctify_hash_table);
+  // Invoke the lambda function "aggregate_functor" on each composite key vector
+  // from the distinctify hash table.
+  source_hash_table.forEachCompositeKeyFast(&aggregate_functor);
+}
+
+
+template <typename HandleT,
+          typename HashTableT>
 ColumnVector* AggregationConcreteHandle::finalizeHashTableHelper(
     const Type &result_type,
     const AggregationStateHashTableBase &hash_table,
@@ -463,6 +617,59 @@ ColumnVector* AggregationConcreteHandle::finalizeHashTableHelper(
 }
 
 template <typename HandleT,
+          typename HashTableT>
+ColumnVector* AggregationConcreteHandle::finalizeHashTableHelperFast(
+    const Type &result_type,
+    const AggregationStateHashTableBase &hash_table,
+    std::vector<std::vector<TypedValue>> *group_by_keys,
+    int index) const {
+  const HandleT &handle = static_cast<const HandleT&>(*this);
+  const HashTableT &hash_table_concrete = static_cast<const HashTableT&>(hash_table);
+
+  if (group_by_keys->empty()) {
+    if (NativeColumnVector::UsableForType(result_type)) {
+      NativeColumnVector *result = new NativeColumnVector(result_type,
+                                                          hash_table_concrete.numEntries());
+      HashTableAggregateFinalizer<HandleT, NativeColumnVector> finalizer(
+          handle,
+          group_by_keys,
+          result);
+      hash_table_concrete.forEachCompositeKeyFast(&finalizer, index);
+      return result;
+    } else {
+      IndirectColumnVector *result = new IndirectColumnVector(result_type,
+                                                              hash_table_concrete.numEntries());
+      HashTableAggregateFinalizer<HandleT, IndirectColumnVector> finalizer(
+          handle,
+          group_by_keys,
+          result);
+      hash_table_concrete.forEachCompositeKeyFast(&finalizer, index);
+      return result;
+    }
+  } else {
+    if (NativeColumnVector::UsableForType(result_type)) {
+      NativeColumnVector *result = new NativeColumnVector(result_type,
+                                                          group_by_keys->size());
+      for (const std::vector<TypedValue> &group_by_key : *group_by_keys) {
+        result->appendTypedValue(finalizeGroupInHashTableFast<HandleT, HashTableT>(hash_table,
+                                                                                   group_by_key,
+                                                                                   index));
+      }
+      return result;
+    } else {
+      IndirectColumnVector *result = new IndirectColumnVector(result_type,
+                                                              hash_table_concrete.numEntries());
+      for (const std::vector<TypedValue> &group_by_key : *group_by_keys) {
+        result->appendTypedValue(finalizeGroupInHashTableFast<HandleT, HashTableT>(hash_table,
+                                                                                   group_by_key,
+                                                                                   index));
+      }
+      return result;
+    }
+  }
+}
+
+template <typename HandleT,
           typename StateT,
           typename HashTableT>
 void AggregationConcreteHandle::mergeGroupByHashTablesHelper(
@@ -477,6 +684,22 @@ void AggregationConcreteHandle::mergeGroupByHashTablesHelper(
 
   source_hash_table_concrete.forEachCompositeKey(&merger);
 }
+
+template <typename HandleT,
+          typename HashTableT>
+void AggregationConcreteHandle::mergeGroupByHashTablesHelperFast(
+    const AggregationStateHashTableBase &source_hash_table,
+    AggregationStateHashTableBase *destination_hash_table) const {
+  const HandleT &handle = static_cast<const HandleT &>(*this);
+  const HashTableT &source_hash_table_concrete =
+      static_cast<const HashTableT &>(source_hash_table);
+
+  HashTableMergerFast<HandleT, HashTableT> merger(handle,
+                                              destination_hash_table);
+
+  source_hash_table_concrete.forEachCompositeKeyFast(&merger);
+}
+
 
 }  // namespace quickstep
 

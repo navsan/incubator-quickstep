@@ -29,6 +29,7 @@
 #include "expressions/aggregation/AggregationConcreteHandle.hpp"
 #include "expressions/aggregation/AggregationHandle.hpp"
 #include "storage/HashTableBase.hpp"
+#include "storage/FastHashTable.hpp"
 #include "threading/SpinMutex.hpp"
 #include "types/Type.hpp"
 #include "types/TypedValue.hpp"
@@ -105,6 +106,22 @@ class AggregationHandleMax : public AggregationConcreteHandle {
     compareAndUpdate(static_cast<AggregationStateMax*>(state), value);
   }
 
+  inline void iterateUnaryInlFast(const TypedValue &value, std::uint8_t *byte_ptr) const {
+    DCHECK(value.isPlausibleInstanceOf(type_.getSignature()));
+    TypedValue *max_ptr = reinterpret_cast<TypedValue *>(byte_ptr);
+    compareAndUpdateFast(max_ptr, value);
+  }
+
+  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+    iterateUnaryInlFast(arguments.front(), byte_ptr);
+  }
+
+  void initPayload(uint8_t *byte_ptr) override {
+    TypedValue *max_ptr = reinterpret_cast<TypedValue *>(byte_ptr);
+    TypedValue t1 = (type_.getNullableVersion().makeNullValue());
+    *max_ptr = t1;
+  }
+
   AggregationState* accumulateColumnVectors(
       const std::vector<std::unique_ptr<ColumnVector>> &column_vectors) const override;
 
@@ -123,6 +140,9 @@ class AggregationHandleMax : public AggregationConcreteHandle {
   void mergeStates(const AggregationState &source,
                    AggregationState *destination) const override;
 
+  void mergeStatesFast(const std::uint8_t *source,
+                   std::uint8_t *destination) const override;
+
   TypedValue finalize(const AggregationState &state) const override {
     return TypedValue(static_cast<const AggregationStateMax&>(state).max_);
   }
@@ -131,9 +151,15 @@ class AggregationHandleMax : public AggregationConcreteHandle {
     return TypedValue(static_cast<const AggregationStateMax&>(state).max_);
   }
 
+  inline TypedValue finalizeHashTableEntryFast(const std::uint8_t *byte_ptr) const {
+    const TypedValue *max_ptr = reinterpret_cast<const TypedValue *>(byte_ptr);
+    return TypedValue(*max_ptr);
+  }
+
   ColumnVector* finalizeHashTable(
       const AggregationStateHashTableBase &hash_table,
-      std::vector<std::vector<TypedValue>> *group_by_keys) const override;
+      std::vector<std::vector<TypedValue>> *group_by_keys,
+      int index) const override;
 
   /**
    * @brief Implementation of AggregationHandle::aggregateOnDistinctifyHashTableForSingle()
@@ -154,6 +180,10 @@ class AggregationHandleMax : public AggregationConcreteHandle {
   void mergeGroupByHashTables(
       const AggregationStateHashTableBase &source_hash_table,
       AggregationStateHashTableBase *destination_hash_table) const override;
+
+  size_t getPayloadSize() const override {
+      return sizeof(TypedValue);
+  }
 
  private:
   friend class AggregateFunctionMax;
@@ -178,6 +208,13 @@ class AggregationHandleMax : public AggregationConcreteHandle {
     SpinMutexLock lock(state->mutex_);
     if (state->max_.isNull() || fast_comparator_->compareTypedValues(value, state->max_)) {
       state->max_ = value;
+    }
+  }
+
+  inline void compareAndUpdateFast(TypedValue *max_ptr, const TypedValue &value) const {
+    if (value.isNull()) return;
+    if (max_ptr->isNull() || fast_comparator_->compareTypedValues(value, *max_ptr)) {
+      *max_ptr = value;
     }
   }
 

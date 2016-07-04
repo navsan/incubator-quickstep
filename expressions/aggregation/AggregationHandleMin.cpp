@@ -89,7 +89,7 @@ void AggregationHandleMin::aggregateValueAccessorIntoHashTable(
   DCHECK_EQ(1u, argument_ids.size())
       << "Got wrong number of arguments for MIN: " << argument_ids.size();
 
-  aggregateValueAccessorIntoHashTableUnaryHelper<
+/*  aggregateValueAccessorIntoHashTableUnaryHelper<
       AggregationHandleMin,
       AggregationStateMin,
       AggregationStateHashTable<AggregationStateMin>>(
@@ -97,7 +97,7 @@ void AggregationHandleMin::aggregateValueAccessorIntoHashTable(
           argument_ids.front(),
           group_by_key_ids,
           AggregationStateMin(type_),
-          hash_table);
+          hash_table);*/
 }
 
 void AggregationHandleMin::mergeStates(
@@ -111,14 +111,27 @@ void AggregationHandleMin::mergeStates(
   }
 }
 
+void AggregationHandleMin::mergeStatesFast(
+    const std::uint8_t *source,
+    std::uint8_t *destination) const {
+    const TypedValue *src_min_ptr = reinterpret_cast<const TypedValue *>(source);
+    TypedValue *dst_min_ptr = reinterpret_cast<TypedValue *>(destination);
+
+    if (!(src_min_ptr->isNull())) {
+      compareAndUpdateFast(dst_min_ptr, *src_min_ptr);
+    }
+}
+
 ColumnVector* AggregationHandleMin::finalizeHashTable(
     const AggregationStateHashTableBase &hash_table,
-    std::vector<std::vector<TypedValue>> *group_by_keys) const {
-  return finalizeHashTableHelper<AggregationHandleMin,
-                                 AggregationStateHashTable<AggregationStateMin>>(
+    std::vector<std::vector<TypedValue>> *group_by_keys,
+    int index) const {
+  return finalizeHashTableHelperFast<AggregationHandleMin,
+                                 AggregationStateFastHashTable>(
       type_.getNonNullableVersion(),
       hash_table,
-      group_by_keys);
+      group_by_keys,
+      index);
 }
 
 AggregationState* AggregationHandleMin::aggregateOnDistinctifyHashTableForSingle(
@@ -144,9 +157,8 @@ void AggregationHandleMin::aggregateOnDistinctifyHashTableForGroupBy(
 void AggregationHandleMin::mergeGroupByHashTables(
     const AggregationStateHashTableBase &source_hash_table,
     AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelper<AggregationHandleMin,
-                               AggregationStateMin,
-                               AggregationStateHashTable<AggregationStateMin>>(
+  mergeGroupByHashTablesHelperFast<AggregationHandleMin,
+                               AggregationStateFastHashTable>(
       source_hash_table, destination_hash_table);
 }
 

@@ -265,7 +265,7 @@ class AggregationHandle {
    **/
   virtual ColumnVector* finalizeHashTable(
       const AggregationStateHashTableBase &hash_table,
-      std::vector<std::vector<TypedValue>> *group_by_keys) const = 0;
+      std::vector<std::vector<TypedValue>> *group_by_keys, int index) const = 0;
 
   /**
    * @brief Create a new HashTable for the distinctify step for DISTINCT aggregation.
@@ -361,6 +361,12 @@ class AggregationHandle {
   virtual void mergeGroupByHashTables(
       const AggregationStateHashTableBase &source_hash_table,
       AggregationStateHashTableBase *destination_hash_table) const = 0;
+
+  virtual size_t getPayloadSize() const {return 8;}
+  virtual void setPayloadOffset(std::size_t) {}
+  virtual void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) {}
+  virtual void mergeStatesFast(const uint8_t *src, uint8_t *dst) const {}
+  virtual void initPayload(uint8_t *byte_ptr) {}
 
  protected:
   AggregationHandle() {

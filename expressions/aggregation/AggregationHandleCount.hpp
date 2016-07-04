@@ -30,6 +30,7 @@
 #include "expressions/aggregation/AggregationConcreteHandle.hpp"
 #include "expressions/aggregation/AggregationHandle.hpp"
 #include "storage/HashTableBase.hpp"
+#include "storage/FastHashTable.hpp"
 #include "types/TypedValue.hpp"
 #include "utility/Macros.hpp"
 
@@ -61,6 +62,10 @@ class AggregationStateCount : public AggregationState {
    * @brief Destructor.
    */
   ~AggregationStateCount() override {}
+
+  size_t getPayloadSize() const {
+     return sizeof(count_);
+  }
 
  private:
   friend class AggregationHandleCount<false, false>;
@@ -108,6 +113,11 @@ class AggregationHandleCount : public AggregationConcreteHandle {
     state->count_.fetch_add(1, std::memory_order_relaxed);
   }
 
+  inline void iterateNullaryInlFast(uint8_t *byte_ptr) {
+      std::int64_t *count_ptr = reinterpret_cast<std::int64_t *>(byte_ptr);
+      (*count_ptr)++;
+  }
+
   /**
    * @brief Iterate with count aggregation state.
    */
@@ -115,6 +125,25 @@ class AggregationHandleCount : public AggregationConcreteHandle {
     if ((!nullable_type) || (!value.isNull())) {
       state->count_.fetch_add(1, std::memory_order_relaxed);
     }
+  }
+
+  inline void iterateUnaryInlFast(const TypedValue &value, uint8_t *byte_ptr) const {
+    if ((!nullable_type) || (!value.isNull())) {
+      std::int64_t *count_ptr = reinterpret_cast<std::int64_t *>(byte_ptr);
+      (*count_ptr)++;
+    }
+  }
+
+  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+     if (arguments.size())
+         iterateUnaryInlFast(arguments.front(), byte_ptr);
+     else
+         iterateNullaryInlFast(byte_ptr);
+  }
+
+  void initPayload(uint8_t *byte_ptr) override {
+    std::int64_t *count_ptr = reinterpret_cast<std::int64_t *>(byte_ptr);
+    *count_ptr = 0;
   }
 
   AggregationState* accumulateNullary(const std::size_t num_tuples) const override {
@@ -139,6 +168,9 @@ class AggregationHandleCount : public AggregationConcreteHandle {
   void mergeStates(const AggregationState &source,
                    AggregationState *destination) const override;
 
+  void mergeStatesFast(const uint8_t *source,
+                   uint8_t *destination) const override;
+
   TypedValue finalize(const AggregationState &state) const override {
     return TypedValue(static_cast<const AggregationStateCount&>(state).count_.load(std::memory_order_relaxed));
   }
@@ -147,9 +179,21 @@ class AggregationHandleCount : public AggregationConcreteHandle {
     return TypedValue(static_cast<const AggregationStateCount&>(state).count_.load(std::memory_order_relaxed));
   }
 
+  inline TypedValue finalizeHashTableEntryFast(const uint8_t *byte_ptr) const {
+//    const AggregationStateAvg &agg_state = static_cast<const AggregationStateAvg&>(state);
+    // TODO(chasseur): Could improve performance further if we made a special
+    // version of finalizeHashTable() that collects all the sums into one
+    // ColumnVector and all the counts into another and then applies
+    // '*divide_operator_' to them in bulk.
+
+    const std::int64_t *count_ptr = reinterpret_cast<const std::int64_t *>(byte_ptr);
+    return TypedValue(*count_ptr);
+  }
+
   ColumnVector* finalizeHashTable(
       const AggregationStateHashTableBase &hash_table,
-      std::vector<std::vector<TypedValue>> *group_by_keys) const override;
+      std::vector<std::vector<TypedValue>> *group_by_keys,
+      int index) const override;
 
   /**
    * @brief Implementation of AggregationHandle::aggregateOnDistinctifyHashTableForSingle()
@@ -169,6 +213,10 @@ class AggregationHandleCount : public AggregationConcreteHandle {
   void mergeGroupByHashTables(
       const AggregationStateHashTableBase &source_hash_table,
       AggregationStateHashTableBase *destination_hash_table) const override;
+
+  size_t getPayloadSize() const override {
+      return sizeof(std::int64_t);
+  }
 
  private:
   friend class AggregateFunctionCount;

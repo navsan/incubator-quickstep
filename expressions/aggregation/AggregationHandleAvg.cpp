@@ -137,8 +137,7 @@ void AggregationHandleAvg::aggregateValueAccessorIntoHashTable(
     AggregationStateHashTableBase *hash_table) const {
   DCHECK_EQ(1u, argument_ids.size())
       << "Got wrong number of arguments for AVG: " << argument_ids.size();
-
-  aggregateValueAccessorIntoHashTableUnaryHelper<
+/*  aggregateValueAccessorIntoHashTableUnaryHelper<
       AggregationHandleAvg,
       AggregationStateAvg,
       AggregationStateHashTable<AggregationStateAvg>>(
@@ -146,7 +145,14 @@ void AggregationHandleAvg::aggregateValueAccessorIntoHashTable(
           argument_ids.front(),
           group_by_key_ids,
           blank_state_,
-          hash_table);
+          hash_table); */
+
+/*     static_cast<AggregationStateFastHashTable *>(hash_table)->upsertValueAccessorCompositeKeyFast(
+      argument_ids.front(),
+      accessor,
+      group_by_key_ids,
+      true,
+      const_cast<AggregationHandleAvg *>(this));*/
 }
 
 void AggregationHandleAvg::mergeStates(
@@ -160,6 +166,19 @@ void AggregationHandleAvg::mergeStates(
   avg_destination->sum_ = merge_add_operator_->applyToTypedValues(avg_destination->sum_,
                                                                   avg_source.sum_);
 }
+
+void AggregationHandleAvg::mergeStatesFast(
+    const uint8_t *source,
+    uint8_t *destination) const {
+    const TypedValue *src_sum_ptr = reinterpret_cast<const TypedValue *>(source + blank_state_.sum_offset);
+    const std::int64_t *src_count_ptr = reinterpret_cast<const std::int64_t *>(source + blank_state_.count_offset);
+    TypedValue *dst_sum_ptr = reinterpret_cast<TypedValue *>(destination+blank_state_.sum_offset);
+    std::int64_t *dst_count_ptr = reinterpret_cast<std::int64_t *>(destination + blank_state_.count_offset);
+    (*dst_count_ptr) += (*src_count_ptr);
+    *dst_sum_ptr = merge_add_operator_->applyToTypedValues(*dst_sum_ptr, *src_sum_ptr);
+}
+
+
 
 TypedValue AggregationHandleAvg::finalize(const AggregationState &state) const {
   const AggregationStateAvg &agg_state = static_cast<const AggregationStateAvg&>(state);
@@ -175,12 +194,14 @@ TypedValue AggregationHandleAvg::finalize(const AggregationState &state) const {
 
 ColumnVector* AggregationHandleAvg::finalizeHashTable(
     const AggregationStateHashTableBase &hash_table,
-    std::vector<std::vector<TypedValue>> *group_by_keys) const {
-  return finalizeHashTableHelper<AggregationHandleAvg,
-                                 AggregationStateHashTable<AggregationStateAvg>>(
+    std::vector<std::vector<TypedValue>> *group_by_keys,
+    int index) const {
+  return finalizeHashTableHelperFast<AggregationHandleAvg,
+                                 AggregationStateFastHashTable>(
       *result_type_,
       hash_table,
-      group_by_keys);
+      group_by_keys,
+      index);
 }
 
 AggregationState* AggregationHandleAvg::aggregateOnDistinctifyHashTableForSingle(
@@ -206,9 +227,8 @@ void AggregationHandleAvg::aggregateOnDistinctifyHashTableForGroupBy(
 void AggregationHandleAvg::mergeGroupByHashTables(
     const AggregationStateHashTableBase &source_hash_table,
     AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelper<AggregationHandleAvg,
-                               AggregationStateAvg,
-                               AggregationStateHashTable<AggregationStateAvg>>(
+  mergeGroupByHashTablesHelperFast<AggregationHandleAvg,
+                               AggregationStateFastHashTable>(
       source_hash_table, destination_hash_table);
 }
 

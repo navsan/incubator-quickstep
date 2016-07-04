@@ -165,6 +165,8 @@ class AggregationOperationState {
    **/
   void finalizeAggregate(InsertDestination *output_destination);
 
+  int dflag;
+
  private:
   // Merge locally (per storage block) aggregated states with global aggregation
   // states.
@@ -185,7 +187,8 @@ class AggregationOperationState {
 
   // Each individual aggregate in this operation has an AggregationHandle and
   // some number of Scalar arguments.
-  std::vector<std::unique_ptr<AggregationHandle>> handles_;
+//  std::vector<std::unique_ptr<AggregationHandle>> handles_;
+  std::vector<AggregationHandle *> handles_;
   std::vector<std::vector<std::unique_ptr<const Scalar>>> arguments_;
 
   // For each aggregate, whether DISTINCT should be applied to the aggregate's
@@ -214,6 +217,8 @@ class AggregationOperationState {
   std::vector<std::unique_ptr<HashTablePool>> group_by_hashtable_pools_;
 
   StorageManager *storage_manager_;
+
+  void mergeGroupByHashTables(AggregationStateHashTableBase *src, AggregationStateHashTableBase *dst);
 
   DISALLOW_COPY_AND_ASSIGN(AggregationOperationState);
 };

@@ -65,7 +65,7 @@ void AggregationHandleDistinct::aggregateValueAccessorIntoHashTable(
 
 ColumnVector* AggregationHandleDistinct::finalizeHashTable(
     const AggregationStateHashTableBase &hash_table,
-    std::vector<std::vector<TypedValue>> *group_by_keys) const {
+    std::vector<std::vector<TypedValue>> *group_by_keys, int index) const {
   DCHECK(group_by_keys->empty());
 
   const auto keys_retriever = [&group_by_keys](std::vector<TypedValue> &group_by_key,

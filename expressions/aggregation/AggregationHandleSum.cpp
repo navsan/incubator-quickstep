@@ -93,7 +93,6 @@ AggregationState* AggregationHandleSum::accumulateColumnVectors(
     const std::vector<std::unique_ptr<ColumnVector>> &column_vectors) const {
   DCHECK_EQ(1u, column_vectors.size())
       << "Got wrong number of ColumnVectors for SUM: " << column_vectors.size();
-
   std::size_t num_tuples = 0;
   TypedValue cv_sum = fast_operator_->accumulateColumnVector(
       blank_state_.sum_,
@@ -127,7 +126,7 @@ void AggregationHandleSum::aggregateValueAccessorIntoHashTable(
   DCHECK_EQ(1u, argument_ids.size())
       << "Got wrong number of arguments for SUM: " << argument_ids.size();
 
-  aggregateValueAccessorIntoHashTableUnaryHelper<
+/*  aggregateValueAccessorIntoHashTableUnaryHelper<
       AggregationHandleSum,
       AggregationStateSum,
       AggregationStateHashTable<AggregationStateSum>>(
@@ -135,7 +134,7 @@ void AggregationHandleSum::aggregateValueAccessorIntoHashTable(
           argument_ids.front(),
           group_by_key_ids,
           blank_state_,
-          hash_table);
+          hash_table);*/
 }
 
 void AggregationHandleSum::mergeStates(
@@ -150,6 +149,17 @@ void AggregationHandleSum::mergeStates(
   sum_destination->null_ = sum_destination->null_ && sum_source.null_;
 }
 
+void AggregationHandleSum::mergeStatesFast(
+    const uint8_t *source,
+    uint8_t *destination) const {
+    const TypedValue *src_sum_ptr = reinterpret_cast<const TypedValue *>(source+blank_state_.sum_offset);
+    const bool *src_null_ptr = reinterpret_cast<const bool *>(source+blank_state_.null_offset);
+    TypedValue *dst_sum_ptr = reinterpret_cast<TypedValue *>(destination+blank_state_.sum_offset);
+    bool *dst_null_ptr = reinterpret_cast<bool *>(destination+blank_state_.null_offset);
+    *dst_sum_ptr = merge_operator_->applyToTypedValues(*dst_sum_ptr, *src_sum_ptr);
+    *dst_null_ptr = (*dst_null_ptr) && (*src_null_ptr);
+}
+
 TypedValue AggregationHandleSum::finalize(const AggregationState &state) const {
   const AggregationStateSum &agg_state = static_cast<const AggregationStateSum&>(state);
   if (agg_state.null_) {
@@ -162,12 +172,14 @@ TypedValue AggregationHandleSum::finalize(const AggregationState &state) const {
 
 ColumnVector* AggregationHandleSum::finalizeHashTable(
     const AggregationStateHashTableBase &hash_table,
-    std::vector<std::vector<TypedValue>> *group_by_keys) const {
-  return finalizeHashTableHelper<AggregationHandleSum,
-                                 AggregationStateHashTable<AggregationStateSum>>(
+    std::vector<std::vector<TypedValue>> *group_by_keys,
+    int index) const {
+  return finalizeHashTableHelperFast<AggregationHandleSum,
+                                 AggregationStateFastHashTable>(
       *result_type_,
       hash_table,
-      group_by_keys);
+      group_by_keys,
+      index);
 }
 
 AggregationState* AggregationHandleSum::aggregateOnDistinctifyHashTableForSingle(
@@ -193,9 +205,8 @@ void AggregationHandleSum::aggregateOnDistinctifyHashTableForGroupBy(
 void AggregationHandleSum::mergeGroupByHashTables(
     const AggregationStateHashTableBase &source_hash_table,
     AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelper<AggregationHandleSum,
-                               AggregationStateSum,
-                               AggregationStateHashTable<AggregationStateSum>>(
+  mergeGroupByHashTablesHelperFast<AggregationHandleSum,
+                               AggregationStateFastHashTable>(
       source_hash_table, destination_hash_table);
 }
 

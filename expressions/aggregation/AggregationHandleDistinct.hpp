@@ -109,7 +109,7 @@ class AggregationHandleDistinct : public AggregationConcreteHandle {
 
   ColumnVector* finalizeHashTable(
       const AggregationStateHashTableBase &hash_table,
-      std::vector<std::vector<TypedValue>> *group_by_keys) const override;
+      std::vector<std::vector<TypedValue>> *group_by_keys, int index) const override;
 
   void mergeGroupByHashTables(
       const AggregationStateHashTableBase &source_hash_table,
