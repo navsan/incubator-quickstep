@@ -90,7 +90,7 @@ class AggregationHandleDistinct : public AggregationConcreteHandle {
 
   void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *groupby_hash_table) const override {
+      AggregationStateHashTableBase *groupby_hash_table, int index) const override {
     LOG(FATAL) << "AggregationHandleDistinct does not support "
                << "aggregateOnDistinctifyHashTableForGroupBy().";
   }

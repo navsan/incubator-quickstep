@@ -39,7 +39,7 @@ namespace quickstep {
 class StorageManager;
 
 AggregationHandleMax::AggregationHandleMax(const Type &type)
-    : type_(type) {
+    : type_(type), block_update(false) {
   fast_comparator_.reset(ComparisonFactory::GetComparison(ComparisonID::kGreater)
                          .makeUncheckedComparatorForTypes(type,
                                                           type.getNonNullableVersion()));
@@ -135,7 +135,7 @@ ColumnVector* AggregationHandleMax::finalizeHashTable(
 
 AggregationState* AggregationHandleMax::aggregateOnDistinctifyHashTableForSingle(
     const AggregationStateHashTableBase &distinctify_hash_table) const {
-  return aggregateOnDistinctifyHashTableForSingleUnaryHelper<
+  return aggregateOnDistinctifyHashTableForSingleUnaryHelperFast<
       AggregationHandleMax,
       AggregationStateMax>(
           distinctify_hash_table);
@@ -143,14 +143,12 @@ AggregationState* AggregationHandleMax::aggregateOnDistinctifyHashTableForSingle
 
 void AggregationHandleMax::aggregateOnDistinctifyHashTableForGroupBy(
     const AggregationStateHashTableBase &distinctify_hash_table,
-    AggregationStateHashTableBase *aggregation_hash_table) const {
-  aggregateOnDistinctifyHashTableForGroupByUnaryHelper<
+    AggregationStateHashTableBase *aggregation_hash_table, int index) const {
+  aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleMax,
-      AggregationStateMax,
-      AggregationStateHashTable<AggregationStateMax>>(
+      AggregationStateFastHashTable>(
           distinctify_hash_table,
-          AggregationStateMax(type_),
-          aggregation_hash_table);
+          aggregation_hash_table, index);
 }
 
 void AggregationHandleMax::mergeGroupByHashTables(

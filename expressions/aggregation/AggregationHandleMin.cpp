@@ -39,7 +39,7 @@ namespace quickstep {
 class StorageManager;
 
 AggregationHandleMin::AggregationHandleMin(const Type &type)
-    : type_(type) {
+    : type_(type), block_update(false) {
   fast_comparator_.reset(ComparisonFactory::GetComparison(ComparisonID::kLess)
                          .makeUncheckedComparatorForTypes(type,
                                                           type.getNonNullableVersion()));
@@ -136,7 +136,7 @@ ColumnVector* AggregationHandleMin::finalizeHashTable(
 
 AggregationState* AggregationHandleMin::aggregateOnDistinctifyHashTableForSingle(
     const AggregationStateHashTableBase &distinctify_hash_table) const {
-  return aggregateOnDistinctifyHashTableForSingleUnaryHelper<
+  return aggregateOnDistinctifyHashTableForSingleUnaryHelperFast<
       AggregationHandleMin,
       AggregationStateMin>(
           distinctify_hash_table);
@@ -144,14 +144,12 @@ AggregationState* AggregationHandleMin::aggregateOnDistinctifyHashTableForSingle
 
 void AggregationHandleMin::aggregateOnDistinctifyHashTableForGroupBy(
     const AggregationStateHashTableBase &distinctify_hash_table,
-    AggregationStateHashTableBase *aggregation_hash_table) const {
-  aggregateOnDistinctifyHashTableForGroupByUnaryHelper<
+    AggregationStateHashTableBase *aggregation_hash_table, int index) const {
+  aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleMin,
-      AggregationStateMin,
-      AggregationStateHashTable<AggregationStateMin>>(
+      AggregationStateFastHashTable>(
           distinctify_hash_table,
-          AggregationStateMin(type_),
-          aggregation_hash_table);
+          aggregation_hash_table, index);
 }
 
 void AggregationHandleMin::mergeGroupByHashTables(

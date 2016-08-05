@@ -118,7 +118,7 @@ class AggregationHandleSum : public AggregationConcreteHandle {
     state->null_ = false;
   }
 
-  inline void iterateUnaryInlFast(const TypedValue &value, uint8_t *byte_ptr) {
+  inline void iterateUnaryInlFast(const TypedValue &value, uint8_t *byte_ptr) const {
     DCHECK(value.isPlausibleInstanceOf(argument_type_.getSignature()));
     if (value.isNull()) return;
     TypedValue *sum_ptr = reinterpret_cast<TypedValue *>(byte_ptr + blank_state_.sum_offset);
@@ -128,7 +128,16 @@ class AggregationHandleSum : public AggregationConcreteHandle {
   }
 
   inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+     if (block_update) return;
      iterateUnaryInlFast(arguments.front(), byte_ptr);
+  }
+
+  void BlockUpdate() override {
+      block_update = true;
+  }
+
+  void AllowUpdate() override {
+      block_update = false;
   }
 
   void initPayload(uint8_t *byte_ptr) override {
@@ -188,7 +197,7 @@ class AggregationHandleSum : public AggregationConcreteHandle {
    */
   void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *aggregation_hash_table) const override;
+      AggregationStateHashTableBase *aggregation_hash_table, int index) const override;
 
   void mergeGroupByHashTables(
       const AggregationStateHashTableBase &source_hash_table,
@@ -213,6 +222,8 @@ class AggregationHandleSum : public AggregationConcreteHandle {
   AggregationStateSum blank_state_;
   std::unique_ptr<UncheckedBinaryOperator> fast_operator_;
   std::unique_ptr<UncheckedBinaryOperator> merge_operator_;
+
+  bool block_update;
 
   DISALLOW_COPY_AND_ASSIGN(AggregationHandleSum);
 };

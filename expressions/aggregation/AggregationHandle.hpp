@@ -347,7 +347,7 @@ class AggregationHandle {
    */
   virtual void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *aggregation_hash_table) const = 0;
+      AggregationStateHashTableBase *aggregation_hash_table, int index) const = 0;
 
   /**
    * @brief Merge two GROUP BY hash tables in one.
@@ -362,11 +362,13 @@ class AggregationHandle {
       const AggregationStateHashTableBase &source_hash_table,
       AggregationStateHashTableBase *destination_hash_table) const = 0;
 
-  virtual size_t getPayloadSize() const {return 8;}
+  virtual size_t getPayloadSize() const {return 1;}
   virtual void setPayloadOffset(std::size_t) {}
   virtual void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) {}
   virtual void mergeStatesFast(const uint8_t *src, uint8_t *dst) const {}
   virtual void initPayload(uint8_t *byte_ptr) {}
+  virtual void BlockUpdate() {}
+  virtual void AllowUpdate() {}
 
  protected:
   AggregationHandle() {

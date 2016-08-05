@@ -308,8 +308,11 @@ FastSeparateChainingHashTable<resizable, serializable, force_key_copy, allow_dup
           key_manager_(this->key_types_, kValueOffset + this->total_payload_size_),
           bucket_size_(ComputeBucketSize(key_manager_.getFixedKeySize())) {
   init_payload_ = static_cast<std::uint8_t *>(calloc(this->total_payload_size_, 1));
-  for (auto handle : handles)
-      handle->initPayload(init_payload_);
+  int k = 0;
+  for (auto handle : handles) {
+      handle->initPayload(init_payload_+this->payload_offsets_[k]);
+      k++;
+  }
   // Bucket size always rounds up to the alignment requirement of the atomic
   // size_t "next" pointer at the front or a ValueT, whichever is larger.
   //
@@ -437,8 +440,7 @@ FastSeparateChainingHashTable<resizable, serializable, force_key_copy, allow_dup
               true),
           kBucketAlignment(alignof(std::atomic<std::size_t>) < alignof(uint8_t) ? alignof(uint8_t)
                                                   : alignof(std::atomic<std::size_t>)),
-          kValueOffset((((sizeof(std::atomic<std::size_t>) + sizeof(std::size_t) - 1) /
-                                           alignof(uint8_t)) + 1) * alignof(uint8_t)),
+          kValueOffset(sizeof(std::atomic<std::size_t>) + sizeof(std::size_t)),
           key_manager_(this->key_types_, kValueOffset + sizeof(uint8_t)),
           bucket_size_(ComputeBucketSize(key_manager_.getFixedKeySize())) {
   // Bucket size always rounds up to the alignment requirement of the atomic
@@ -1046,7 +1048,6 @@ uint8_t* FastSeparateChainingHashTable<resizable, serializable, force_key_copy, 
     else
         memcpy(value, init_value_ptr, this->total_payload_size_);
 
-
   // Update the previous chain pointer to point to the new bucket.
   pending_chain_ptr->store(pending_chain_ptr_finish_value, std::memory_order_release);
 
@@ -1168,10 +1169,11 @@ uint8_t* FastSeparateChainingHashTable<resizable, serializable, force_key_copy, 
 //  uint8_t *value;
 //  value = static_cast<unsigned char*>(bucket) + kValueOffset;
     uint8_t *value = static_cast<unsigned char*>(bucket) + kValueOffset;
-    if (init_value_ptr == nullptr)
+    if (init_value_ptr == nullptr) {
         memcpy(value, init_payload_, this->total_payload_size_);
-    else
+    } else {
         memcpy(value, init_value_ptr, this->total_payload_size_);
+    }
 
   // Update the previous chaing pointer to point to the new bucket.
   pending_chain_ptr->store(pending_chain_ptr_finish_value, std::memory_order_release);

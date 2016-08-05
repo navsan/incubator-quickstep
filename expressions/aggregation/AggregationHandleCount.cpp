@@ -196,7 +196,7 @@ AggregationState* AggregationHandleCount<count_star, nullable_type>
     ::aggregateOnDistinctifyHashTableForSingle(
         const AggregationStateHashTableBase &distinctify_hash_table) const {
   DCHECK_EQ(count_star, false);
-  return aggregateOnDistinctifyHashTableForSingleUnaryHelper<
+  return aggregateOnDistinctifyHashTableForSingleUnaryHelperFast<
       AggregationHandleCount<count_star, nullable_type>,
       AggregationStateCount>(
           distinctify_hash_table);
@@ -206,13 +206,14 @@ template <bool count_star, bool nullable_type>
 void AggregationHandleCount<count_star, nullable_type>
     ::aggregateOnDistinctifyHashTableForGroupBy(
         const AggregationStateHashTableBase &distinctify_hash_table,
-        AggregationStateHashTableBase *aggregation_hash_table) const {
+        AggregationStateHashTableBase *aggregation_hash_table, int index) const {
   DCHECK_EQ(count_star, false);
   aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleCount<count_star, nullable_type>,
       AggregationStateFastHashTable>(
           distinctify_hash_table,
-          aggregation_hash_table);
+          aggregation_hash_table,
+          index);
 }
 
 template <bool count_star, bool nullable_type>

@@ -42,7 +42,7 @@ namespace quickstep {
 class StorageManager;
 
 AggregationHandleAvg::AggregationHandleAvg(const Type &type)
-    : argument_type_(type) {
+    : argument_type_(type), block_update(false) {
   // We sum Int as Long and Float as Double so that we have more headroom when
   // adding many values.
   TypeID type_precision_id;
@@ -206,7 +206,7 @@ ColumnVector* AggregationHandleAvg::finalizeHashTable(
 
 AggregationState* AggregationHandleAvg::aggregateOnDistinctifyHashTableForSingle(
     const AggregationStateHashTableBase &distinctify_hash_table) const {
-  return aggregateOnDistinctifyHashTableForSingleUnaryHelper<
+  return aggregateOnDistinctifyHashTableForSingleUnaryHelperFast<
       AggregationHandleAvg,
       AggregationStateAvg>(
           distinctify_hash_table);
@@ -214,14 +214,12 @@ AggregationState* AggregationHandleAvg::aggregateOnDistinctifyHashTableForSingle
 
 void AggregationHandleAvg::aggregateOnDistinctifyHashTableForGroupBy(
     const AggregationStateHashTableBase &distinctify_hash_table,
-    AggregationStateHashTableBase *aggregation_hash_table) const {
-  aggregateOnDistinctifyHashTableForGroupByUnaryHelper<
+    AggregationStateHashTableBase *aggregation_hash_table, int index) const {
+  aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleAvg,
-      AggregationStateAvg,
-      AggregationStateHashTable<AggregationStateAvg>>(
+      AggregationStateFastHashTable>(
           distinctify_hash_table,
-          blank_state_,
-          aggregation_hash_table);
+          aggregation_hash_table, index);
 }
 
 void AggregationHandleAvg::mergeGroupByHashTables(

@@ -631,7 +631,6 @@ target_link_libraries(quickstep_storage_EvictionPolicy
                       quickstep_utility_Macros)
 target_link_libraries(quickstep_storage_FastHashTable
                       quickstep_catalog_CatalogTypedefs
-                      quickstep_expressions_aggregation_AggregationHandleAvg
                       quickstep_storage_HashTable
                       quickstep_storage_HashTableBase
                       quickstep_storage_StorageBlob

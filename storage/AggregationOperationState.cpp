@@ -105,7 +105,8 @@ AggregationOperationState::AggregationOperationState(
         new HashTablePool(estimated_num_entries,
                           hash_table_impl_type,
                           group_by_types,
-                          handles_.back(),
+                          {1},
+                          handles_,
                           storage_manager)));
   } else {
     // Set up each individual aggregate in this operation.
@@ -142,8 +143,11 @@ AggregationOperationState::AggregationOperationState(
                               group_by_types,
                               handles_.back().get(),
                               storage_manager)));*/
+         if (*is_distinct_it) {
+            handles_.back()->BlockUpdate();
+         }
          group_by_handles.emplace_back(handles_.back());
-         payload_sizes.emplace_back(handles_.back()->getPayloadSize());
+         payload_sizes.emplace_back(group_by_handles.back()->getPayloadSize());
 
       } else {
         // Aggregation without GROUP BY: create a single global state.
@@ -186,26 +190,26 @@ AggregationOperationState::AggregationOperationState(
                 estimated_num_entries,
                 storage_manager));*/
 
-std::vector<AggregationHandle *> local;
-local.emplace_back(handles_.back());
+        std::vector<AggregationHandle *> local;
+        // local.emplace_back(handles_.back());
+        local.clear();
         distinctify_hashtables_.emplace_back(
-AggregationStateFastHashTableFactory::CreateResizable(
+        AggregationStateFastHashTableFactory::CreateResizable(
                 *distinctify_hash_table_impl_types_it,
                 key_types,
                 estimated_num_entries,
                 {0},
                 local,
                 storage_manager));
-
         ++distinctify_hash_table_impl_types_it;
       } else {
         distinctify_hashtables_.emplace_back(nullptr);
       }
     }
 
-      if (!group_by_handles.empty()) {
-        // Aggregation with GROUP BY: create a HashTable pool for per-group states.
-        group_by_hashtable_pools_.emplace_back(std::unique_ptr<HashTablePool>(
+    if (!group_by_handles.empty()) {
+      // Aggregation with GROUP BY: create a HashTable pool for per-group states.
+      group_by_hashtable_pools_.emplace_back(std::unique_ptr<HashTablePool>(
             new HashTablePool(estimated_num_entries,
                               hash_table_impl_type,
                               group_by_types,
@@ -213,7 +217,7 @@ AggregationStateFastHashTableFactory::CreateResizable(
                               group_by_handles,
                               storage_manager)));
       }
-  }
+    }
 }
 
 AggregationOperationState* AggregationOperationState::ReconstructFromProto(
@@ -442,13 +446,15 @@ void AggregationOperationState::aggregateBlockHashTable(const block_id input_blo
                                distinctify_hashtables_[agg_idx].get(),
                                &reuse_matches,
                                &reuse_group_by_vectors);
-    } else {
-      // Call StorageBlock::aggregateGroupBy() to aggregate this block's values
-      // directly into the (threadsafe) shared global HashTable for this
-      // aggregate.
-      DCHECK(group_by_hashtable_pools_[0] != nullptr);
-      AggregationStateHashTableBase *agg_hash_table = group_by_hashtable_pools_[0]->getHashTableFast();
-      DCHECK(agg_hash_table != nullptr);
+    }
+  }
+
+  // Call StorageBlock::aggregateGroupBy() to aggregate this block's values
+  // directly into the (threadsafe) shared global HashTable for this
+  // aggregate.
+  DCHECK(group_by_hashtable_pools_[0] != nullptr);
+  AggregationStateHashTableBase *agg_hash_table = group_by_hashtable_pools_[0]->getHashTableFast();
+  DCHECK(agg_hash_table != nullptr);
  /*     block->aggregateGroupBy(*handles_[agg_idx],
                               arguments_[agg_idx],
                               group_by_list_,
@@ -456,16 +462,13 @@ void AggregationOperationState::aggregateBlockHashTable(const block_id input_blo
                               agg_hash_table,
                               &reuse_matches,
                               &reuse_group_by_vectors);*/
-      block->aggregateGroupByFast(arguments_,
+  block->aggregateGroupByFast(arguments_,
                               group_by_list_,
                               predicate_.get(),
                               agg_hash_table,
                               &reuse_matches,
                               &reuse_group_by_vectors);
-      group_by_hashtable_pools_[0]->returnHashTable(agg_hash_table);
-      break;
-    }
-  }
+  group_by_hashtable_pools_[0]->returnHashTable(agg_hash_table);
 }
 
 void AggregationOperationState::finalizeSingleState(InsertDestination *output_destination) {
@@ -541,9 +544,11 @@ void AggregationOperationState::finalizeHashTable(InsertDestination *output_dest
       DCHECK(hash_tables->back() != nullptr);
       AggregationStateHashTableBase *agg_hash_table = hash_tables->back().get();
       DCHECK(agg_hash_table != nullptr);
+      handles_[agg_idx]->AllowUpdate();
       handles_[agg_idx]->aggregateOnDistinctifyHashTableForGroupBy(
           *distinctify_hashtables_[agg_idx],
-          agg_hash_table);
+          agg_hash_table,
+          agg_idx);
     }
 
     auto *hash_tables = group_by_hashtable_pools_[0]->getAllHashTables();

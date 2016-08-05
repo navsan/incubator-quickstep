@@ -110,14 +110,23 @@ class AggregationHandleMin : public AggregationConcreteHandle {
     compareAndUpdate(state, value);
   }
 
-  inline void iterateUnaryInlFast(const TypedValue &value, uint8_t *byte_ptr) {
+  inline void iterateUnaryInlFast(const TypedValue &value, uint8_t *byte_ptr) const {
       DCHECK(value.isPlausibleInstanceOf(type_.getSignature()));
       TypedValue *min_ptr = reinterpret_cast<TypedValue *>(byte_ptr);
       compareAndUpdateFast(min_ptr, value);
   }
 
   inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+    if (block_update) return;
     iterateUnaryInlFast(arguments.front(), byte_ptr);
+  }
+
+  void BlockUpdate() override {
+      block_update = true;
+  }
+
+  void AllowUpdate() override {
+      block_update = false;
   }
 
   void initPayload(uint8_t *byte_ptr) override {
@@ -178,7 +187,7 @@ class AggregationHandleMin : public AggregationConcreteHandle {
    */
   void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *aggregation_hash_table) const override;
+      AggregationStateHashTableBase *aggregation_hash_table, int index) const override;
 
   void mergeGroupByHashTables(
       const AggregationStateHashTableBase &source_hash_table,
@@ -222,6 +231,8 @@ class AggregationHandleMin : public AggregationConcreteHandle {
 
   const Type &type_;
   std::unique_ptr<UncheckedComparator> fast_comparator_;
+
+  bool block_update;
 
   DISALLOW_COPY_AND_ASSIGN(AggregationHandleMin);
 };

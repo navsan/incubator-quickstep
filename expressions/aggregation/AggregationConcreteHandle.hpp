@@ -27,6 +27,7 @@
 #include "catalog/CatalogTypedefs.hpp"
 #include "expressions/aggregation/AggregationHandle.hpp"
 #include "storage/HashTable.hpp"
+#include "storage/FastHashTable.hpp"
 #include "storage/HashTableBase.hpp"
 #include "types/TypedValue.hpp"
 #include "types/containers/ColumnVector.hpp"
@@ -278,6 +279,11 @@ class AggregationConcreteHandle : public AggregationHandle {
       const AggregationStateHashTableBase &distinctify_hash_table) const;
 
   template <typename HandleT,
+            typename StateT>
+  StateT* aggregateOnDistinctifyHashTableForSingleUnaryHelperFast(
+      const AggregationStateHashTableBase &distinctify_hash_table) const;
+
+  template <typename HandleT,
             typename StateT,
             typename HashTableT>
   void aggregateOnDistinctifyHashTableForGroupByUnaryHelper(
@@ -289,7 +295,7 @@ class AggregationConcreteHandle : public AggregationHandle {
             typename HashTableT>
   void aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *hash_table) const;
+      AggregationStateHashTableBase *hash_table, int index) const;
 
 
   template <typename HandleT,
@@ -494,6 +500,31 @@ StateT* AggregationConcreteHandle::aggregateOnDistinctifyHashTableForSingleUnary
 }
 
 template <typename HandleT,
+          typename StateT>
+StateT* AggregationConcreteHandle::aggregateOnDistinctifyHashTableForSingleUnaryHelperFast(
+    const AggregationStateHashTableBase &distinctify_hash_table) const {
+  const HandleT& handle = static_cast<const HandleT&>(*this);
+  StateT *state = static_cast<StateT*>(createInitialState());
+
+  // A lambda function which will be called on each key from the distinctify
+  // hash table.
+  const auto aggregate_functor = [&handle, &state](const TypedValue &key,
+                                                   const std::uint8_t &dumb_placeholder) {
+    // For each (unary) key in the distinctify hash table, aggregate the key
+    // into "state".
+    handle.iterateUnaryInl(state, key);
+  };
+
+  const AggregationStateFastHashTable &hash_table =
+      static_cast<const AggregationStateFastHashTable &>(distinctify_hash_table);
+  // Invoke the lambda function "aggregate_functor" on each key from the distinctify
+  // hash table.
+  hash_table.forEach(&aggregate_functor);
+
+  return state;
+}
+
+template <typename HandleT,
           typename StateT,
           typename HashTableT>
 void AggregationConcreteHandle::aggregateOnDistinctifyHashTableForGroupByUnaryHelper(
@@ -534,13 +565,13 @@ template <typename HandleT,
           typename HashTableT>
 void AggregationConcreteHandle::aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast(
     const AggregationStateHashTableBase &distinctify_hash_table,
-    AggregationStateHashTableBase *aggregation_hash_table) const {
+    AggregationStateHashTableBase *aggregation_hash_table, int index) const {
   const HandleT& handle = static_cast<const HandleT&>(*this);
   HashTableT *target_hash_table = static_cast<HashTableT*>(aggregation_hash_table);
 
   // A lambda function which will be called on each key-value pair from the
   // distinctify hash table.
-  const auto aggregate_functor = [&handle, &target_hash_table](
+  const auto aggregate_functor = [&handle, &target_hash_table, &index](
       std::vector<TypedValue> &key,
       const bool &dumb_placeholder) {
     // For each (composite) key vector in the distinctify hash table with size N.
@@ -552,10 +583,10 @@ void AggregationConcreteHandle::aggregateOnDistinctifyHashTableForGroupByUnaryHe
     // An upserter as lambda function for aggregating the argument into its
     // GROUP BY group's entry inside aggregation_hash_table.
     const auto upserter = [&handle, &argument](std::uint8_t *state) {
-      handle.iterateUnaryInlFast(argument, state+sizeof(SpinMutex));
+      handle.iterateUnaryInlFast(argument, state);
     };
 
-    target_hash_table->upsertCompositeKeyFast(key, nullptr, &upserter);
+    target_hash_table->upsertCompositeKeyFast(key, nullptr, &upserter, index);
   };
 
   const HashTableT &source_hash_table =

@@ -72,7 +72,7 @@ ColumnVector* AggregationHandleDistinct::finalizeHashTable(
                                                const bool &dumb_placeholder) -> void {
     group_by_keys->emplace_back(std::move(group_by_key));
   };
-  static_cast<const AggregationStateHashTable<bool>&>(hash_table).forEachCompositeKey(&keys_retriever);
+  static_cast<const AggregationStateFastHashTable&>(hash_table).forEachCompositeKey(&keys_retriever);
 
   return nullptr;
 }

@@ -135,15 +135,24 @@ class AggregationHandleCount : public AggregationConcreteHandle {
   }
 
   inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+     if (block_update) return;
      if (arguments.size())
          iterateUnaryInlFast(arguments.front(), byte_ptr);
      else
          iterateNullaryInlFast(byte_ptr);
   }
 
+  void BlockUpdate() override {
+     block_update = true;
+  }
+
+  void AllowUpdate() override {
+     block_update = false;
+  }
+
   void initPayload(uint8_t *byte_ptr) override {
-    std::int64_t *count_ptr = reinterpret_cast<std::int64_t *>(byte_ptr);
-    *count_ptr = 0;
+     std::int64_t *count_ptr = reinterpret_cast<std::int64_t *>(byte_ptr);
+     *count_ptr = 0;
   }
 
   AggregationState* accumulateNullary(const std::size_t num_tuples) const override {
@@ -208,7 +217,7 @@ class AggregationHandleCount : public AggregationConcreteHandle {
    */
   void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *aggregation_hash_table) const override;
+      AggregationStateHashTableBase *aggregation_hash_table, int index) const override;
 
   void mergeGroupByHashTables(
       const AggregationStateHashTableBase &source_hash_table,
@@ -224,8 +233,10 @@ class AggregationHandleCount : public AggregationConcreteHandle {
   /**
    * @brief Constructor.
    **/
-  AggregationHandleCount() {
+  AggregationHandleCount() : block_update(false) {
   }
+
+  bool block_update;
 
   DISALLOW_COPY_AND_ASSIGN(AggregationHandleCount);
 };

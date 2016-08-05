@@ -35,7 +35,6 @@
 #include "storage/TupleReference.hpp"
 #include "storage/ValueAccessor.hpp"
 #include "storage/ValueAccessorUtil.hpp"
-#include "expressions/aggregation/AggregationHandleAvg.hpp"
 #include "threading/SpinSharedMutex.hpp"
 #include "threading/SpinMutex.hpp"
 #include "types/Type.hpp"
@@ -433,6 +432,11 @@ class FastHashTable : public HashTableBase<resizable,
   bool upsertCompositeKeyFast(const std::vector<TypedValue> &key,
                           const uint8_t *init_value_ptr,
                           FunctorT *functor);
+
+  template <typename FunctorT>
+  bool upsertCompositeKeyFast(const std::vector<TypedValue> &key,
+                          const uint8_t *init_value_ptr,
+                          FunctorT *functor, int index);
 
   bool upsertCompositeKeyNewFast(const std::vector<TypedValue> &key,
                           const uint8_t *init_value_ptr,
@@ -1846,6 +1850,41 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
     }
   }
 }
+
+template <bool resizable,
+          bool serializable,
+          bool force_key_copy,
+          bool allow_duplicate_keys>
+template <typename FunctorT>
+bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
+    ::upsertCompositeKeyFast(const std::vector<TypedValue> &key,
+                         const std::uint8_t *init_value_ptr,
+                         FunctorT *functor, int index) {
+  DEBUG_ASSERT(!allow_duplicate_keys);
+  const std::size_t variable_size = calculateVariableLengthCompositeKeyCopySize(key);
+  if (resizable) {
+    for (;;) {
+      {
+        SpinSharedMutexSharedLock<true> resize_lock(resize_shared_mutex_);
+        uint8_t *value = upsertCompositeKeyInternalFast(key, init_value_ptr, variable_size);
+        if (value != nullptr) {
+          (*functor)(value+payload_offsets_[index]);
+          return true;
+        }
+      }
+      resize(0, variable_size);
+    }
+  } else {
+    uint8_t *value = upsertCompositeKeyInternalFast(key, init_value_ptr, variable_size);
+    if (value == nullptr) {
+      return false;
+    } else {
+      (*functor)(value+payload_offsets_[index]);
+      return true;
+    }
+  }
+}
+
 
 template <bool resizable,
           bool serializable,
