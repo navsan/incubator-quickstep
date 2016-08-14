@@ -94,13 +94,6 @@ AggregationOperationState::AggregationOperationState(
     handles_.emplace_back(new AggregationHandleDistinct());
     arguments_.push_back({});
     is_distinct_.emplace_back(false);
-
- /*   group_by_hashtable_pools_.emplace_back(std::unique_ptr<HashTablePool>(
-        new HashTablePool(estimated_num_entries,
-                          hash_table_impl_type,
-                          group_by_types,
-                          handles_.back().get(),
-                          storage_manager)));*/
     group_by_hashtable_pools_.emplace_back(std::unique_ptr<HashTablePool>(
         new HashTablePool(estimated_num_entries,
                           hash_table_impl_type,
@@ -136,19 +129,12 @@ AggregationOperationState::AggregationOperationState(
       handles_.emplace_back((*agg_func_it)->createHandle(argument_types));
 
       if (!group_by_list_.empty()) {
-        // Aggregation with GROUP BY: create a HashTable pool for per-group states.
- /*       group_by_hashtable_pools_.emplace_back(std::unique_ptr<HashTablePool>(
-            new HashTablePool(estimated_num_entries,
-                              hash_table_impl_type,
-                              group_by_types,
-                              handles_.back().get(),
-                              storage_manager)));*/
+        // Aggregation with GROUP BY: combined payload is partially updated in the presence of DISTINCT.
          if (*is_distinct_it) {
             handles_.back()->BlockUpdate();
          }
          group_by_handles.emplace_back(handles_.back());
          payload_sizes.emplace_back(group_by_handles.back()->getPayloadSize());
-
       } else {
         // Aggregation without GROUP BY: create a single global state.
         single_states_.emplace_back(handles_.back()->createInitialState());
@@ -183,23 +169,13 @@ AggregationOperationState::AggregationOperationState(
         // the number of entries in the distinctify hash table. We may estimate
         // for each distinct aggregation an estimated_num_distinct_keys value during
         // query optimization, if it worths.
- /*       distinctify_hashtables_.emplace_back(
-            handles_.back()->createDistinctifyHashTable(
-                *distinctify_hash_table_impl_types_it,
-                key_types,
-                estimated_num_entries,
-                storage_manager));*/
-
-        std::vector<AggregationHandle *> local;
-        // local.emplace_back(handles_.back());
-        local.clear();
         distinctify_hashtables_.emplace_back(
         AggregationStateFastHashTableFactory::CreateResizable(
                 *distinctify_hash_table_impl_types_it,
                 key_types,
                 estimated_num_entries,
                 {0},
-                local,
+                {},
                 storage_manager));
         ++distinctify_hash_table_impl_types_it;
       } else {
@@ -455,13 +431,6 @@ void AggregationOperationState::aggregateBlockHashTable(const block_id input_blo
   DCHECK(group_by_hashtable_pools_[0] != nullptr);
   AggregationStateHashTableBase *agg_hash_table = group_by_hashtable_pools_[0]->getHashTableFast();
   DCHECK(agg_hash_table != nullptr);
- /*     block->aggregateGroupBy(*handles_[agg_idx],
-                              arguments_[agg_idx],
-                              group_by_list_,
-                              predicate_.get(),
-                              agg_hash_table,
-                              &reuse_matches,
-                              &reuse_group_by_vectors);*/
   block->aggregateGroupByFast(arguments_,
                               group_by_list_,
                               predicate_.get(),
@@ -507,7 +476,6 @@ void AggregationOperationState::finalizeHashTable(InsertDestination *output_dest
 
   // TODO(harshad) - Find heuristics for faster merge, even in a single thread.
   // e.g. Keep merging entries from smaller hash tables to larger.
-//  auto *hash_tables = group_by_hashtable_pools_[0]->getAllHashTables();
 
   auto *hash_tables = group_by_hashtable_pools_[0]->getAllHashTables();
   for (std::size_t agg_idx = 0; agg_idx < handles_.size(); ++agg_idx) {

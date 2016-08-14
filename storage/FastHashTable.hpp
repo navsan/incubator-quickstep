@@ -1901,7 +1901,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
         uint8_t *value = upsertCompositeKeyInternalFast(key, init_value_ptr, variable_size);
         if (value != nullptr) {
             SpinMutex lock(value);
-            for (int k = 0; k < handles_.size(); ++k) {
+            for (unsigned int k = 0; k < handles_.size(); ++k) {
                 handles_[k]->mergeStatesFast(source_state + payload_offsets_[k], value + payload_offsets_[k]);
             }
           return true;
@@ -1915,7 +1915,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
       return false;
     } else {
       SpinMutex lock(value);
-      for (int k = 0; k < handles_.size(); ++k) {
+      for (unsigned int k = 0; k < handles_.size(); ++k) {
           handles_[k]->mergeStatesFast(source_state + payload_offsets_[k], value + payload_offsets_[k]);
       }
       return true;
@@ -2018,10 +2018,8 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
               break;
             } else {
               SpinMutex lock(value);
-              for (int k = 0; k < handles_.size(); ++k) {
+              for (unsigned int k = 0; k < handles_.size(); ++k) {
                   local.clear();
-//                std::for_each(argument_ids[k].begin(),argument_ids[k].end(),[&](attribute_id id)
-//                {local.emplace_back(accessor->getTypedValue(id));});
                   if (argument_ids[k].size()) {
                     local.emplace_back(accessor->getTypedValue(argument_ids[k].front()));
                   }
@@ -2047,10 +2045,8 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
           return false;
         } else {
           SpinMutex lock(value);
-          for (int k = 0; k < handles_.size(); ++k) {
+          for (unsigned int k = 0; k < handles_.size(); ++k) {
               local.clear();
-//            std::for_each(argument_ids[k].begin(),argument_ids[k].end(),[&](attribute_id id)
-//            {local.emplace_back(accessor->getTypedValue(id));});
               if (argument_ids[k].size()) {
                  local.emplace_back(accessor->getTypedValue(argument_ids[k].front()));
               }
@@ -2175,10 +2171,8 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
               break;
             } else {
               SpinMutex lock(value);
-              for (int k = 0; k < handles_.size(); ++k) {
+              for (unsigned int k = 0; k < handles_.size(); ++k) {
                   local.clear();
-//                std::for_each(argument_ids[k].begin(),argument_ids[k].end(),[&](attribute_id id)
-//                {local.emplace_back(accessor->getTypedValue(id));});
                   if (argument_ids[k].size()) {
                       local.emplace_back(accessor->getTypedValue(argument_ids[k].front()));
                   }
@@ -2208,10 +2202,8 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
           return false;
         } else {
           SpinMutex lock(value);
-          for (int k = 0; k < handles_.size(); ++k) {
+          for (unsigned int k = 0; k < handles_.size(); ++k) {
               local.clear();
-//            std::for_each(argument_ids[k].begin(),argument_ids[k].end(),[&](attribute_id id)
-//            {local.emplace_back(accessor->getTypedValue(id));});
               if (argument_ids[k].size()) {
                  local.emplace_back(accessor->getTypedValue(argument_ids[k].front()));
               }
