@@ -170,9 +170,6 @@ class FastSeparateChainingHashTable : public FastHashTable<resizable,
   bool preallocateForBulkInsert(const std::size_t total_entries,
                                 const std::size_t total_variable_key_size,
                                 HashTablePreallocationState *prealloc_state) override;
-
-  size_t get_buckets_allocated() const override {return header_->buckets_allocated;}
-
  private:
   struct Header {
     std::size_t num_slots;

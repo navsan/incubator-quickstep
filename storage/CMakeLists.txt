@@ -631,7 +631,6 @@ target_link_libraries(quickstep_storage_EvictionPolicy
                       quickstep_utility_Macros)
 target_link_libraries(quickstep_storage_FastHashTable
                       quickstep_catalog_CatalogTypedefs
-                      quickstep_storage_HashTable
                       quickstep_storage_HashTableBase
                       quickstep_storage_StorageBlob
                       quickstep_storage_StorageBlockInfo
@@ -968,7 +967,6 @@ target_link_libraries(quickstep_storage_StorageBlock
                       quickstep_storage_CompressedColumnStoreTupleStorageSubBlock
                       quickstep_storage_CompressedPackedRowStoreTupleStorageSubBlock
                       quickstep_storage_CountedReference
-                      quickstep_storage_FastHashTable
                       quickstep_storage_HashTableBase
                       quickstep_storage_IndexSubBlock
                       quickstep_storage_InsertDestinationInterface

@@ -321,4 +321,4 @@ target_link_libraries(AggregationHandle_tests
                       quickstep_types_operations_comparisons_Comparison
                       quickstep_types_operations_comparisons_ComparisonFactory
                       quickstep_types_operations_comparisons_ComparisonID)
-add_test(AggregationHandle_tests AggregationHandle_tests)
+#add_test(AggregationHandle_tests AggregationHandle_tests)

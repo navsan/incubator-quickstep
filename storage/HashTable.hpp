@@ -49,16 +49,6 @@ namespace quickstep {
  */
 
 /**
- * @brief Codes which indicate the result of a call to put() or
- *        putCompositeKey().
- **/
-enum class HashTablePutResult {
-  kOK = 0,
-  kDuplicateKey,
-  kOutOfSpace
-};
-
-/**
  * @brief Base class for hash table.
  *
  * This class is templated so that the core hash-table logic can be reused in

@@ -42,7 +42,6 @@
 #include "utility/BloomFilter.hpp"
 #include "utility/HashPair.hpp"
 #include "utility/Macros.hpp"
-#include "storage/HashTable.hpp"
 
 namespace quickstep {
 
@@ -561,7 +560,7 @@ class FastHashTable : public HashTableBase<resizable,
       const std::vector<std::vector<attribute_id>> &argument,
       ValueAccessor *accessor,
       const std::vector<attribute_id> &key_attr_ids,
-      const bool check_for_null_keys);
+      const bool check_for_null_keys) override;
 
   /**
    * @brief Determine the number of entries (key-value pairs) contained in this
@@ -1322,7 +1321,6 @@ class FastHashTable : public HashTableBase<resizable,
   // Used only when resizable is false:
   void *hash_table_memory_;
   const std::size_t hash_table_memory_size_;
-virtual size_t get_buckets_allocated() const {return 0;}
 
  private:
   // Assign '*key_vector' with the attribute values specified by 'key_attr_ids'

@@ -38,7 +38,6 @@
 #include "storage/CompressedPackedRowStoreTupleStorageSubBlock.hpp"
 #include "storage/CountedReference.hpp"
 #include "storage/HashTableBase.hpp"
-#include "storage/FastHashTable.hpp"
 #include "storage/IndexSubBlock.hpp"
 #include "storage/InsertDestinationInterface.hpp"
 #include "storage/PackedRowStoreTupleStorageSubBlock.hpp"
@@ -573,11 +572,10 @@ void StorageBlock::aggregateGroupByFast(
      }
   }
 
-  static_cast<AggregationStateFastHashTable *>(hash_table)->upsertValueAccessorCompositeKeyFast(
-      argument_ids,
-      &temp_result,
-      key_ids,
-      true);
+  hash_table->upsertValueAccessorCompositeKeyFast(argument_ids,
+                                                  &temp_result,
+                                                  key_ids,
+                                                  true);
 }
 
 
