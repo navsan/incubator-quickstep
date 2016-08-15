@@ -1900,7 +1900,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
         SpinSharedMutexSharedLock<true> resize_lock(resize_shared_mutex_);
         uint8_t *value = upsertCompositeKeyInternalFast(key, init_value_ptr, variable_size);
         if (value != nullptr) {
-            SpinMutex lock(value);
+            SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
             for (unsigned int k = 0; k < handles_.size(); ++k) {
                 handles_[k]->mergeStatesFast(source_state + payload_offsets_[k], value + payload_offsets_[k]);
             }
@@ -1914,7 +1914,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
     if (value == nullptr) {
       return false;
     } else {
-      SpinMutex lock(value);
+      SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
       for (unsigned int k = 0; k < handles_.size(); ++k) {
           handles_[k]->mergeStatesFast(source_state + payload_offsets_[k], value + payload_offsets_[k]);
       }
@@ -2017,7 +2017,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
               continuing = true;
               break;
             } else {
-              SpinMutex lock(value);
+              SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
               for (unsigned int k = 0; k < handles_.size(); ++k) {
                   local.clear();
                   if (argument_ids[k].size()) {
@@ -2044,7 +2044,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
         if (value == nullptr) {
           return false;
         } else {
-          SpinMutex lock(value);
+          SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
           for (unsigned int k = 0; k < handles_.size(); ++k) {
               local.clear();
               if (argument_ids[k].size()) {
@@ -2170,7 +2170,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
               continuing = true;
               break;
             } else {
-              SpinMutex lock(value);
+              SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
               for (unsigned int k = 0; k < handles_.size(); ++k) {
                   local.clear();
                   if (argument_ids[k].size()) {
@@ -2201,7 +2201,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
         if (value == nullptr) {
           return false;
         } else {
-          SpinMutex lock(value);
+          SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
           for (unsigned int k = 0; k < handles_.size(); ++k) {
               local.clear();
               if (argument_ids[k].size()) {
