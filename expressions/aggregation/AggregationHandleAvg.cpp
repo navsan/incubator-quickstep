@@ -137,22 +137,6 @@ void AggregationHandleAvg::aggregateValueAccessorIntoHashTable(
     AggregationStateHashTableBase *hash_table) const {
   DCHECK_EQ(1u, argument_ids.size())
       << "Got wrong number of arguments for AVG: " << argument_ids.size();
-/*  aggregateValueAccessorIntoHashTableUnaryHelper<
-      AggregationHandleAvg,
-      AggregationStateAvg,
-      AggregationStateHashTable<AggregationStateAvg>>(
-          accessor,
-          argument_ids.front(),
-          group_by_key_ids,
-          blank_state_,
-          hash_table); */
-
-/*     static_cast<AggregationStateFastHashTable *>(hash_table)->upsertValueAccessorCompositeKeyFast(
-      argument_ids.front(),
-      accessor,
-      group_by_key_ids,
-      true,
-      const_cast<AggregationHandleAvg *>(this));*/
 }
 
 void AggregationHandleAvg::mergeStates(
@@ -214,20 +198,14 @@ AggregationState* AggregationHandleAvg::aggregateOnDistinctifyHashTableForSingle
 
 void AggregationHandleAvg::aggregateOnDistinctifyHashTableForGroupBy(
     const AggregationStateHashTableBase &distinctify_hash_table,
-    AggregationStateHashTableBase *aggregation_hash_table, int index) const {
+    AggregationStateHashTableBase *aggregation_hash_table,
+    int index) const {
   aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleAvg,
       AggregationStateFastHashTable>(
           distinctify_hash_table,
-          aggregation_hash_table, index);
-}
-
-void AggregationHandleAvg::mergeGroupByHashTables(
-    const AggregationStateHashTableBase &source_hash_table,
-    AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelperFast<AggregationHandleAvg,
-                               AggregationStateFastHashTable>(
-      source_hash_table, destination_hash_table);
+          aggregation_hash_table,
+          index);
 }
 
 }  // namespace quickstep

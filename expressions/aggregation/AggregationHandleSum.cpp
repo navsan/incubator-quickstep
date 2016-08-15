@@ -125,16 +125,6 @@ void AggregationHandleSum::aggregateValueAccessorIntoHashTable(
     AggregationStateHashTableBase *hash_table) const {
   DCHECK_EQ(1u, argument_ids.size())
       << "Got wrong number of arguments for SUM: " << argument_ids.size();
-
-/*  aggregateValueAccessorIntoHashTableUnaryHelper<
-      AggregationHandleSum,
-      AggregationStateSum,
-      AggregationStateHashTable<AggregationStateSum>>(
-          accessor,
-          argument_ids.front(),
-          group_by_key_ids,
-          blank_state_,
-          hash_table);*/
 }
 
 void AggregationHandleSum::mergeStates(
@@ -192,21 +182,14 @@ AggregationState* AggregationHandleSum::aggregateOnDistinctifyHashTableForSingle
 
 void AggregationHandleSum::aggregateOnDistinctifyHashTableForGroupBy(
     const AggregationStateHashTableBase &distinctify_hash_table,
-    AggregationStateHashTableBase *aggregation_hash_table, int index) const {
+    AggregationStateHashTableBase *aggregation_hash_table,
+    int index) const {
   aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleSum,
       AggregationStateFastHashTable>(
           distinctify_hash_table,
           aggregation_hash_table,
           index);
-}
-
-void AggregationHandleSum::mergeGroupByHashTables(
-    const AggregationStateHashTableBase &source_hash_table,
-    AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelperFast<AggregationHandleSum,
-                               AggregationStateFastHashTable>(
-      source_hash_table, destination_hash_table);
 }
 
 }  // namespace quickstep

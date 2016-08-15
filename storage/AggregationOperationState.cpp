@@ -461,7 +461,7 @@ void AggregationOperationState::finalizeSingleState(InsertDestination *output_de
 
 void AggregationOperationState::mergeGroupByHashTables(AggregationStateHashTableBase *src,
                                                        AggregationStateHashTableBase *dst) {
-    HashTableMergerNewFast merger(dst);
+    HashTableMergerFast merger(dst);
     (static_cast<FastHashTable<true, false, true, false> *>(src))->forEachCompositeKeyFast(&merger);
 }
 
@@ -478,18 +478,15 @@ void AggregationOperationState::finalizeHashTable(InsertDestination *output_dest
   // e.g. Keep merging entries from smaller hash tables to larger.
 
   auto *hash_tables = group_by_hashtable_pools_[0]->getAllHashTables();
-  for (std::size_t agg_idx = 0; agg_idx < handles_.size(); ++agg_idx) {
-    if (hash_tables->size() > 1) {
-      for (int hash_table_index = 0;
-           hash_table_index < static_cast<int>(hash_tables->size() - 1);
-           ++hash_table_index) {
-        // Merge each hash table to the last hash table.
-        mergeGroupByHashTables(
-            (*hash_tables)[hash_table_index].get(),
-            hash_tables->back().get());
-      }
+  if (hash_tables->size() > 1) {
+    for (int hash_table_index = 0;
+         hash_table_index < static_cast<int>(hash_tables->size() - 1);
+         ++hash_table_index) {
+      // Merge each hash table to the last hash table.
+      mergeGroupByHashTables(
+          (*hash_tables)[hash_table_index].get(),
+          hash_tables->back().get());
     }
-    break;
   }
 
   // Collect per-aggregate finalized values.

@@ -135,26 +135,9 @@ template <bool count_star, bool nullable_type>
   if (count_star) {
     DCHECK_EQ(0u, argument_ids.size())
         << "Got wrong number of arguments for COUNT(*): " << argument_ids.size();
-/*    aggregateValueAccessorIntoHashTableNullaryHelper<
-        AggregationHandleCount<count_star, nullable_type>,
-        AggregationStateCount,
-        AggregationStateHashTable<AggregationStateCount>>(
-            accessor,
-            group_by_key_ids,
-            AggregationStateCount(),
-            hash_table);*/
   } else {
     DCHECK_EQ(1u, argument_ids.size())
         << "Got wrong number of arguments for COUNT: " << argument_ids.size();
-/*    aggregateValueAccessorIntoHashTableUnaryHelper<
-        AggregationHandleCount<count_star, nullable_type>,
-        AggregationStateCount,
-        AggregationStateHashTable<AggregationStateCount>>(
-            accessor,
-            argument_ids.front(),
-            group_by_key_ids,
-            AggregationStateCount(),
-            hash_table); */
   }
 }
 
@@ -206,7 +189,8 @@ template <bool count_star, bool nullable_type>
 void AggregationHandleCount<count_star, nullable_type>
     ::aggregateOnDistinctifyHashTableForGroupBy(
         const AggregationStateHashTableBase &distinctify_hash_table,
-        AggregationStateHashTableBase *aggregation_hash_table, int index) const {
+        AggregationStateHashTableBase *aggregation_hash_table,
+        int index) const {
   DCHECK_EQ(count_star, false);
   aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleCount<count_star, nullable_type>,
@@ -214,16 +198,6 @@ void AggregationHandleCount<count_star, nullable_type>
           distinctify_hash_table,
           aggregation_hash_table,
           index);
-}
-
-template <bool count_star, bool nullable_type>
-void AggregationHandleCount<count_star, nullable_type>::mergeGroupByHashTables(
-    const AggregationStateHashTableBase &source_hash_table,
-    AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelperFast<
-      AggregationHandleCount,
-      AggregationStateFastHashTable>(source_hash_table,
-                                                        destination_hash_table);
 }
 
 // Explicitly instantiate and compile in the different versions of

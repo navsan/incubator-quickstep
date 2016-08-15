@@ -236,8 +236,6 @@ class FastHashTable : public HashTableBase<resizable,
    *         resizable is false and storage space for the hash table has been
    *         exhausted.
    **/
-  HashTablePutResult putCompositeKey(const std::vector<TypedValue> &key,
-                                     const uint8_t &value);
 
   HashTablePutResult putCompositeKeyFast(const std::vector<TypedValue> &key,
                                      const uint8_t *value_ptr);
@@ -380,7 +378,7 @@ class FastHashTable : public HashTableBase<resizable,
    **/
   template <typename FunctorT>
   bool upsert(const TypedValue &key,
-              const uint8_t &initial_value,
+              const uint8_t *initial_value_ptr,
               FunctorT *functor);
 
   /**
@@ -422,12 +420,6 @@ class FastHashTable : public HashTableBase<resizable,
    *         enough space to insert a new entry in this HashTable.
    **/
   template <typename FunctorT>
-  bool upsertCompositeKey(const std::vector<TypedValue> &key,
-                          const uint8_t &initial_value,
-                          FunctorT *functor);
-
-
-  template <typename FunctorT>
   bool upsertCompositeKeyFast(const std::vector<TypedValue> &key,
                           const uint8_t *init_value_ptr,
                           FunctorT *functor);
@@ -435,9 +427,10 @@ class FastHashTable : public HashTableBase<resizable,
   template <typename FunctorT>
   bool upsertCompositeKeyFast(const std::vector<TypedValue> &key,
                           const uint8_t *init_value_ptr,
-                          FunctorT *functor, int index);
+                          FunctorT *functor,
+                          int index);
 
-  bool upsertCompositeKeyNewFast(const std::vector<TypedValue> &key,
+  bool upsertCompositeKeyFast(const std::vector<TypedValue> &key,
                           const uint8_t *init_value_ptr,
                           const uint8_t *source_state);
 
@@ -488,14 +481,6 @@ class FastHashTable : public HashTableBase<resizable,
    *         accessor's iteration will be left on the first tuple which could
    *         not be inserted).
    **/
-  template <typename FunctorT>
-  bool upsertValueAccessor(ValueAccessor *accessor,
-                           const attribute_id key_attr_id,
-                           const bool check_for_null_keys,
-                           const uint8_t &initial_value,
-                           FunctorT *functor);
-
-
   bool upsertValueAccessorFast(const std::vector<std::vector<attribute_id>> &argument_ids,
                            ValueAccessor *accessor,
                            const attribute_id key_attr_id,
@@ -548,14 +533,6 @@ class FastHashTable : public HashTableBase<resizable,
    *         accessor's iteration will be left on the first tuple which could
    *         not be inserted).
    **/
-  template <typename FunctorT>
-  bool upsertValueAccessorCompositeKey(
-      ValueAccessor *accessor,
-      const std::vector<attribute_id> &key_attr_ids,
-      const bool check_for_null_keys,
-      const uint8_t &initial_value,
-      FunctorT *functor);
-
   bool upsertValueAccessorCompositeKeyFast(
       const std::vector<std::vector<attribute_id>> &argument,
       ValueAccessor *accessor,
@@ -631,7 +608,8 @@ class FastHashTable : public HashTableBase<resizable,
    *         Otherwise, return NULL.
    **/
   virtual const uint8_t* getSingleCompositeKey(const std::vector<TypedValue> &key) const = 0;
-  virtual const uint8_t* getSingleCompositeKey(const std::vector<TypedValue> &key, int index) const = 0;
+  virtual const uint8_t* getSingleCompositeKey(const std::vector<TypedValue> &key,
+                                               int index) const = 0;
 
   /**
    * @brief Lookup a key against this hash table to find matching entries.
@@ -1002,13 +980,12 @@ class FastHashTable : public HashTableBase<resizable,
    * @return The number of key-value pairs visited.
    **/
   template <typename FunctorT>
-  std::size_t forEachCompositeKey(FunctorT *functor) const;
-
-  template <typename FunctorT>
   std::size_t forEachCompositeKeyFast(FunctorT *functor) const;
 
   template <typename FunctorT>
-  std::size_t forEachCompositeKeyFast(FunctorT *functor, int index) const;
+  std::size_t forEachCompositeKeyFast(FunctorT *functor,
+                                      int index) const;
+
   /**
    * @brief A call to this function will cause a bloom filter to be built
    *        during the build phase of this hash table.
@@ -1196,10 +1173,6 @@ class FastHashTable : public HashTableBase<resizable,
                                          const std::size_t variable_key_size,
                                          const uint8_t &value,
                                          HashTablePreallocationState *prealloc_state) = 0;
-  virtual HashTablePutResult putCompositeKeyInternal(const std::vector<TypedValue> &key,
-                                                     const std::size_t variable_key_size,
-                                                     const uint8_t &value,
-                                                     HashTablePreallocationState *prealloc_state) = 0;
 
   virtual HashTablePutResult putCompositeKeyInternalFast(const std::vector<TypedValue> &key,
                                                      const std::size_t variable_key_size,
@@ -1213,15 +1186,9 @@ class FastHashTable : public HashTableBase<resizable,
   // return NULL if there is not enough space to insert a new key, in which
   // case a resizable HashTable should release the 'resize_shared_mutex_' and
   // call resize(), then try again.
-  virtual uint8_t* upsertInternal(const TypedValue &key,
-                                 const std::size_t variable_key_size,
-                                 const uint8_t &initial_value) = 0;
   virtual uint8_t* upsertInternalFast(const TypedValue &key,
-                                 const std::uint8_t *init_value_ptr,
-                                 const std::size_t variable_key_size) = 0;
-  virtual uint8_t* upsertCompositeKeyInternal(const std::vector<TypedValue> &key,
-                                             const std::size_t variable_key_size,
-                                             const uint8_t &initial_value) = 0;
+                                 const std::size_t variable_key_size,
+                                 const std::uint8_t *init_value_ptr) = 0;
 
   virtual uint8_t* upsertCompositeKeyInternalFast(const std::vector<TypedValue> &key,
                                                   const std::uint8_t *init_value_ptr,
@@ -1415,31 +1382,6 @@ HashTablePutResult FastHashTable<resizable, serializable, force_key_copy, allow_
     return result;
   } else {
     return putInternal(key, variable_size, value, nullptr);
-  }
-}
-
-template <bool resizable,
-          bool serializable,
-          bool force_key_copy,
-          bool allow_duplicate_keys>
-HashTablePutResult FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-    ::putCompositeKey(const std::vector<TypedValue> &key,
-                      const uint8_t& value) {
-  const std::size_t variable_size = calculateVariableLengthCompositeKeyCopySize(key);
-  if (resizable) {
-    HashTablePutResult result = HashTablePutResult::kOutOfSpace;
-    while (result == HashTablePutResult::kOutOfSpace) {
-      {
-        SpinSharedMutexSharedLock<true> lock(resize_shared_mutex_);
-        result = putCompositeKeyInternal(key, variable_size, value, nullptr);
-      }
-      if (result == HashTablePutResult::kOutOfSpace) {
-        resize(0, variable_size);
-      }
-    }
-    return result;
-  } else {
-    return putCompositeKeyInternal(key, variable_size, value, nullptr);
   }
 }
 
@@ -1713,7 +1655,7 @@ template <bool resizable,
 template <typename FunctorT>
 bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
     ::upsert(const TypedValue &key,
-             const uint8_t &initial_value,
+             const uint8_t *initial_value_ptr,
              FunctorT *functor) {
   DEBUG_ASSERT(!allow_duplicate_keys);
   const std::size_t variable_size = (force_key_copy && !scalar_key_inline_) ? key.getDataSize() : 0;
@@ -1721,7 +1663,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
     for (;;) {
       {
         SpinSharedMutexSharedLock<true> resize_lock(resize_shared_mutex_);
-        uint8_t *value = upsertInternal(key, variable_size, initial_value);
+        uint8_t *value = upsertInternalFast(key, variable_size, initial_value_ptr);
         if (value != nullptr) {
           (*functor)(value);
           return true;
@@ -1730,7 +1672,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
       resize(0, force_key_copy && !scalar_key_inline_ ? key.getDataSize() : 0);
     }
   } else {
-    uint8_t *value = upsertInternal(key, variable_size, initial_value);
+    uint8_t *value = upsertInternalFast(key, variable_size, initial_value_ptr);
     if (value == nullptr) {
       return false;
     } else {
@@ -1740,41 +1682,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
   }
 }
 
-template <bool resizable,
-          bool serializable,
-          bool force_key_copy,
-          bool allow_duplicate_keys>
-template <typename FunctorT>
-bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-    ::upsertCompositeKey(const std::vector<TypedValue> &key,
-                         const uint8_t &initial_value,
-                         FunctorT *functor) {
-  DEBUG_ASSERT(!allow_duplicate_keys);
-  const std::size_t variable_size = calculateVariableLengthCompositeKeyCopySize(key);
-  if (resizable) {
-    for (;;) {
-      {
-        SpinSharedMutexSharedLock<true> resize_lock(resize_shared_mutex_);
-        uint8_t *value = upsertCompositeKeyInternal(key, variable_size, initial_value);
-        if (value != nullptr) {
-          (*functor)(value);
-          return true;
-        }
-      }
-      resize(0, variable_size);
-    }
-  } else {
-    uint8_t *value = upsertCompositeKeyInternal(key, variable_size, initial_value);
-    if (value == nullptr) {
-      return false;
-    } else {
-      (*functor)(value);
-      return true;
-    }
-  }
-}
-
-class HashTableMergerNewFast {
+class HashTableMergerFast {
  public:
   /**
    * @brief Constructor
@@ -1783,7 +1691,7 @@ class HashTableMergerNewFast {
    * @param destination_hash_table The destination hash table to which other
    *        hash tables will be merged.
    **/
-  explicit HashTableMergerNewFast(AggregationStateHashTableBase *destination_hash_table)
+  explicit HashTableMergerFast(AggregationStateHashTableBase *destination_hash_table)
       : destination_hash_table_(static_cast<FastHashTable<true, false, true, false> *>(destination_hash_table)) {}
 
   /**
@@ -1801,7 +1709,7 @@ class HashTableMergerNewFast {
       // The CHECK is required as upsertCompositeKey can return false if the
       // hash table runs out of space during the upsert process. The ideal
       // solution will be to retry again if the upsert fails.
-      CHECK(destination_hash_table_->upsertCompositeKeyNewFast(
+      CHECK(destination_hash_table_->upsertCompositeKeyFast(
           group_by_key, original_state, source_state));
     } else {
       destination_hash_table_->putCompositeKeyFast(group_by_key, source_state);
@@ -1811,7 +1719,7 @@ class HashTableMergerNewFast {
  private:
   FastHashTable<true, false, true, false> *destination_hash_table_;
 
-  DISALLOW_COPY_AND_ASSIGN(HashTableMergerNewFast);
+  DISALLOW_COPY_AND_ASSIGN(HashTableMergerFast);
 };
 
 
@@ -1857,7 +1765,8 @@ template <typename FunctorT>
 bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
     ::upsertCompositeKeyFast(const std::vector<TypedValue> &key,
                          const std::uint8_t *init_value_ptr,
-                         FunctorT *functor, int index) {
+                         FunctorT *functor,
+                         int index) {
   DEBUG_ASSERT(!allow_duplicate_keys);
   const std::size_t variable_size = calculateVariableLengthCompositeKeyCopySize(key);
   if (resizable) {
@@ -1889,7 +1798,7 @@ template <bool resizable,
           bool force_key_copy,
           bool allow_duplicate_keys>
 bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-    ::upsertCompositeKeyNewFast(const std::vector<TypedValue> &key,
+    ::upsertCompositeKeyFast(const std::vector<TypedValue> &key,
                          const std::uint8_t *init_value_ptr,
                          const std::uint8_t *source_state) {
   DEBUG_ASSERT(!allow_duplicate_keys);
@@ -1927,68 +1836,6 @@ template <bool resizable,
           bool serializable,
           bool force_key_copy,
           bool allow_duplicate_keys>
-template <typename FunctorT>
-bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-    ::upsertValueAccessor(ValueAccessor *accessor,
-                          const attribute_id key_attr_id,
-                          const bool check_for_null_keys,
-                          const uint8_t &initial_value,
-                          FunctorT *functor) {
-  DEBUG_ASSERT(!allow_duplicate_keys);
-  std::size_t variable_size;
-  return InvokeOnAnyValueAccessor(
-      accessor,
-      [&](auto *accessor) -> bool {  // NOLINT(build/c++11)
-    if (resizable) {
-      bool continuing = true;
-      while (continuing) {
-        {
-          continuing = false;
-          SpinSharedMutexSharedLock<true> lock(resize_shared_mutex_);
-          while (accessor->next()) {
-            TypedValue key = accessor->getTypedValue(key_attr_id);
-            if (check_for_null_keys && key.isNull()) {
-              continue;
-            }
-            variable_size = (force_key_copy && !scalar_key_inline_) ? key.getDataSize() : 0;
-            uint8_t *value = this->upsertInternal(key, variable_size, initial_value);
-            if (value == nullptr) {
-              continuing = true;
-              break;
-            } else {
-              (*functor)(*accessor, value);
-            }
-          }
-        }
-        if (continuing) {
-          this->resize(0, variable_size);
-          accessor->previous();
-        }
-      }
-    } else {
-      while (accessor->next()) {
-        TypedValue key = accessor->getTypedValue(key_attr_id);
-        if (check_for_null_keys && key.isNull()) {
-          continue;
-        }
-        variable_size = (force_key_copy && !scalar_key_inline_) ? key.getDataSize() : 0;
-        uint8_t *value = this->upsertInternal(key, variable_size, initial_value);
-        if (value == nullptr) {
-          return false;
-        } else {
-          (*functor)(*accessor, value);
-        }
-      }
-    }
-
-    return true;
-  });
-}
-
-template <bool resizable,
-          bool serializable,
-          bool force_key_copy,
-          bool allow_duplicate_keys>
 bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
     ::upsertValueAccessorFast(const std::vector<std::vector<attribute_id>> &argument_ids,
                           ValueAccessor *accessor,
@@ -2012,7 +1859,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
               continue;
             }
             variable_size = (force_key_copy && !scalar_key_inline_) ? key.getDataSize() : 0;
-            uint8_t *value = this->upsertInternalFast(key, nullptr, variable_size);
+            uint8_t *value = this->upsertInternalFast(key, variable_size, nullptr);
             if (value == nullptr) {
               continuing = true;
               break;
@@ -2040,7 +1887,7 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
           continue;
         }
         variable_size = (force_key_copy && !scalar_key_inline_) ? key.getDataSize() : 0;
-        uint8_t *value = this->upsertInternalFast(key, nullptr, variable_size);
+        uint8_t *value = this->upsertInternalFast(key, variable_size, nullptr);
         if (value == nullptr) {
           return false;
         } else {
@@ -2052,78 +1899,6 @@ bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys
               }
               handles_[k]->iterateInlFast(local, value + payload_offsets_[k]);
           }
-        }
-      }
-    }
-
-    return true;
-  });
-}
-
-template <bool resizable,
-          bool serializable,
-          bool force_key_copy,
-          bool allow_duplicate_keys>
-template <typename FunctorT>
-bool FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-    ::upsertValueAccessorCompositeKey(ValueAccessor *accessor,
-                                      const std::vector<attribute_id> &key_attr_ids,
-                                      const bool check_for_null_keys,
-                                      const uint8_t &initial_value,
-                                      FunctorT *functor) {
-  DEBUG_ASSERT(!allow_duplicate_keys);
-  std::size_t variable_size;
-  std::vector<TypedValue> key_vector;
-  key_vector.resize(key_attr_ids.size());
-  return InvokeOnAnyValueAccessor(
-      accessor,
-      [&](auto *accessor) -> bool {  // NOLINT(build/c++11)
-    if (resizable) {
-      bool continuing = true;
-      while (continuing) {
-        {
-          continuing = false;
-          SpinSharedMutexSharedLock<true> lock(resize_shared_mutex_);
-          while (accessor->next()) {
-            if (this->GetCompositeKeyFromValueAccessor(*accessor,
-                                                       key_attr_ids,
-                                                       check_for_null_keys,
-                                                       &key_vector)) {
-              continue;
-            }
-            variable_size = this->calculateVariableLengthCompositeKeyCopySize(key_vector);
-            uint8_t *value = this->upsertCompositeKeyInternal(key_vector,
-                                                             variable_size,
-                                                             initial_value);
-            if (value == nullptr) {
-              continuing = true;
-              break;
-            } else {
-              (*functor)(*accessor, value);
-            }
-          }
-        }
-        if (continuing) {
-          this->resize(0, variable_size);
-          accessor->previous();
-        }
-      }
-    } else {
-      while (accessor->next()) {
-        if (this->GetCompositeKeyFromValueAccessor(*accessor,
-                                                   key_attr_ids,
-                                                   check_for_null_keys,
-                                                   &key_vector)) {
-          continue;
-        }
-        variable_size = this->calculateVariableLengthCompositeKeyCopySize(key_vector);
-        uint8_t *value = this->upsertCompositeKeyInternal(key_vector,
-                                                         variable_size,
-                                                         initial_value);
-        if (value == nullptr) {
-          return false;
-        } else {
-          (*functor)(*accessor, value);
         }
       }
     }
@@ -2514,25 +2289,6 @@ template <bool resizable,
           bool allow_duplicate_keys>
 template <typename FunctorT>
 std::size_t FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-    ::forEachCompositeKey(FunctorT *functor) const {
-  std::size_t entries_visited = 0;
-  std::size_t entry_num = 0;
-  std::vector<TypedValue> key;
-  const uint8_t *value_ptr;
-  while (getNextEntryCompositeKey(&key, &value_ptr, &entry_num)) {
-    ++entries_visited;
-    (*functor)(key, *value_ptr);
-    key.clear();
-  }
-  return entries_visited;
-}
-
-template <bool resizable,
-          bool serializable,
-          bool force_key_copy,
-          bool allow_duplicate_keys>
-template <typename FunctorT>
-std::size_t FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
     ::forEachCompositeKeyFast(FunctorT *functor) const {
   std::size_t entries_visited = 0;
   std::size_t entry_num = 0;
@@ -2553,7 +2309,8 @@ template <bool resizable,
           bool allow_duplicate_keys>
 template <typename FunctorT>
 std::size_t FastHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-    ::forEachCompositeKeyFast(FunctorT *functor, int index) const {
+    ::forEachCompositeKeyFast(FunctorT *functor,
+                              int index) const {
   std::size_t entries_visited = 0;
   std::size_t entry_num = 0;
   std::vector<TypedValue> key;

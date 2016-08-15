@@ -88,16 +88,6 @@ void AggregationHandleMin::aggregateValueAccessorIntoHashTable(
     AggregationStateHashTableBase *hash_table) const {
   DCHECK_EQ(1u, argument_ids.size())
       << "Got wrong number of arguments for MIN: " << argument_ids.size();
-
-/*  aggregateValueAccessorIntoHashTableUnaryHelper<
-      AggregationHandleMin,
-      AggregationStateMin,
-      AggregationStateHashTable<AggregationStateMin>>(
-          accessor,
-          argument_ids.front(),
-          group_by_key_ids,
-          AggregationStateMin(type_),
-          hash_table);*/
 }
 
 void AggregationHandleMin::mergeStates(
@@ -144,20 +134,14 @@ AggregationState* AggregationHandleMin::aggregateOnDistinctifyHashTableForSingle
 
 void AggregationHandleMin::aggregateOnDistinctifyHashTableForGroupBy(
     const AggregationStateHashTableBase &distinctify_hash_table,
-    AggregationStateHashTableBase *aggregation_hash_table, int index) const {
+    AggregationStateHashTableBase *aggregation_hash_table,
+    int index) const {
   aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleMin,
       AggregationStateFastHashTable>(
           distinctify_hash_table,
-          aggregation_hash_table, index);
-}
-
-void AggregationHandleMin::mergeGroupByHashTables(
-    const AggregationStateHashTableBase &source_hash_table,
-    AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelperFast<AggregationHandleMin,
-                               AggregationStateFastHashTable>(
-      source_hash_table, destination_hash_table);
+          aggregation_hash_table,
+          index);
 }
 
 }  // namespace quickstep

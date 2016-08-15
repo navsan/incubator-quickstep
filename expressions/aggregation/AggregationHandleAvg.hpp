@@ -132,7 +132,7 @@ class AggregationHandleAvg : public AggregationConcreteHandle {
     ++(*count_ptr);
   }
 
-  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) const override {
      if (block_update) return;
      iterateUnaryInlFast(arguments.front(), byte_ptr);
   }
@@ -145,7 +145,7 @@ class AggregationHandleAvg : public AggregationConcreteHandle {
       block_update = false;
   }
 
-  void initPayload(uint8_t *byte_ptr) override {
+  void initPayload(uint8_t *byte_ptr) const override {
     TypedValue *sum_ptr = reinterpret_cast<TypedValue *>(byte_ptr + blank_state_.sum_offset);
     std::int64_t *count_ptr = reinterpret_cast<std::int64_t *>(byte_ptr + blank_state_.count_offset);
     *sum_ptr = blank_state_.sum_;
@@ -217,11 +217,8 @@ class AggregationHandleAvg : public AggregationConcreteHandle {
    */
   void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *aggregation_hash_table, int index) const override;
-
-  void mergeGroupByHashTables(
-      const AggregationStateHashTableBase &source_hash_table,
-      AggregationStateHashTableBase *destination_hash_table) const override;
+      AggregationStateHashTableBase *aggregation_hash_table,
+      int index) const override;
 
   size_t getPayloadSize() const override {
       return blank_state_.getPayloadSize();

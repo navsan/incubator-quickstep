@@ -265,7 +265,8 @@ class AggregationHandle {
    **/
   virtual ColumnVector* finalizeHashTable(
       const AggregationStateHashTableBase &hash_table,
-      std::vector<std::vector<TypedValue>> *group_by_keys, int index) const = 0;
+      std::vector<std::vector<TypedValue>> *group_by_keys,
+      int index) const = 0;
 
   /**
    * @brief Create a new HashTable for the distinctify step for DISTINCT aggregation.
@@ -347,26 +348,13 @@ class AggregationHandle {
    */
   virtual void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *aggregation_hash_table, int index) const = 0;
-
-  /**
-   * @brief Merge two GROUP BY hash tables in one.
-   *
-   * @note Both the hash tables should have the same structure.
-   *
-   * @param source_hash_table The hash table which will get merged.
-   * @param destination_hash_table The hash table to which we will merge the
-   *        other hash table.
-   **/
-  virtual void mergeGroupByHashTables(
-      const AggregationStateHashTableBase &source_hash_table,
-      AggregationStateHashTableBase *destination_hash_table) const = 0;
+      AggregationStateHashTableBase *aggregation_hash_table,
+      int index) const = 0;
 
   virtual size_t getPayloadSize() const {return 1;}
-  virtual void setPayloadOffset(std::size_t) {}
-  virtual void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) {}
+  virtual void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) const {}
   virtual void mergeStatesFast(const uint8_t *src, uint8_t *dst) const {}
-  virtual void initPayload(uint8_t *byte_ptr) {}
+  virtual void initPayload(uint8_t *byte_ptr) const {}
   virtual void BlockUpdate() {}
   virtual void AllowUpdate() {}
 

@@ -112,7 +112,7 @@ class AggregationHandleMax : public AggregationConcreteHandle {
     compareAndUpdateFast(max_ptr, value);
   }
 
-  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) const override {
     if (block_update) return;
     iterateUnaryInlFast(arguments.front(), byte_ptr);
   }
@@ -125,7 +125,7 @@ class AggregationHandleMax : public AggregationConcreteHandle {
       block_update = false;
   }
 
-  void initPayload(uint8_t *byte_ptr) override {
+  void initPayload(uint8_t *byte_ptr) const override {
     TypedValue *max_ptr = reinterpret_cast<TypedValue *>(byte_ptr);
     TypedValue t1 = (type_.getNullableVersion().makeNullValue());
     *max_ptr = t1;
@@ -184,11 +184,8 @@ class AggregationHandleMax : public AggregationConcreteHandle {
    */
   void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *aggregation_hash_table, int index) const override;
-
-  void mergeGroupByHashTables(
-      const AggregationStateHashTableBase &source_hash_table,
-      AggregationStateHashTableBase *destination_hash_table) const override;
+      AggregationStateHashTableBase *aggregation_hash_table,
+      int index) const override;
 
   size_t getPayloadSize() const override {
       return sizeof(TypedValue);

@@ -120,25 +120,15 @@ class FastSeparateChainingHashTable : public FastHashTable<resizable,
                                  const std::size_t variable_key_size,
                                  const uint8_t &value,
                                  HashTablePreallocationState *prealloc_state) override;
-  HashTablePutResult putCompositeKeyInternal(const std::vector<TypedValue> &key,
-                                             const std::size_t variable_key_size,
-                                             const uint8_t &value,
-                                             HashTablePreallocationState *prealloc_state) override;
+
   HashTablePutResult putCompositeKeyInternalFast(const std::vector<TypedValue> &key,
                                              const std::size_t variable_key_size,
                                              const std::uint8_t *init_value_ptr,
                                              HashTablePreallocationState *prealloc_state) override;
 
-  uint8_t* upsertInternal(const TypedValue &key,
-                         const std::size_t variable_key_size,
-                         const uint8_t &initial_value) override;
   uint8_t* upsertInternalFast(const TypedValue &key,
-                         const std::uint8_t *init_value_ptr,
-                         const std::size_t variable_key_size) override;
-
-  uint8_t* upsertCompositeKeyInternal(const std::vector<TypedValue> &key,
-                                     const std::size_t variable_key_size,
-                                     const uint8_t &initial_value) override;
+                         const std::size_t variable_key_size,
+                         const std::uint8_t *init_value_ptr) override;
 
   uint8_t* upsertCompositeKeyInternalFast(const std::vector<TypedValue> &key,
                                      const std::uint8_t *init_value_ptr,
@@ -788,76 +778,6 @@ template <bool resizable,
           bool allow_duplicate_keys>
 HashTablePutResult
     FastSeparateChainingHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-        ::putCompositeKeyInternal(const std::vector<TypedValue> &key,
-                                  const std::size_t variable_key_size,
-                                  const uint8_t &value,
-                                  HashTablePreallocationState *prealloc_state) {
-  DEBUG_ASSERT(this->key_types_.size() == key.size());
-
-  if (prealloc_state == nullptr) {
-    // Early check for a free bucket.
-    if (header_->buckets_allocated.load(std::memory_order_relaxed) >= header_->num_buckets) {
-      return HashTablePutResult::kOutOfSpace;
-    }
-
-    // TODO(chasseur): If allow_duplicate_keys is true, avoid storing more than
-    // one copy of the same variable-length key.
-    if (!key_manager_.allocateVariableLengthKeyStorage(variable_key_size)) {
-      // Ran out of variable-length key storage space.
-      return HashTablePutResult::kOutOfSpace;
-    }
-  }
-
-  const std::size_t hash_code = this->hashCompositeKey(key);
-  void *bucket = nullptr;
-  std::atomic<std::size_t> *pending_chain_ptr;
-  std::size_t pending_chain_ptr_finish_value;
-  for (;;) {
-    if (locateBucketForInsertion(hash_code,
-                                 0,
-                                 &bucket,
-                                 &pending_chain_ptr,
-                                 &pending_chain_ptr_finish_value,
-                                 prealloc_state)) {
-      // Found an empty bucket.
-      break;
-    } else if (bucket == nullptr) {
-      // Ran out of buckets. Deallocate any variable space that we were unable
-      // to use.
-      DEBUG_ASSERT(prealloc_state == nullptr);
-      key_manager_.deallocateVariableLengthKeyStorage(variable_key_size);
-      return HashTablePutResult::kOutOfSpace;
-    } else {
-      // Hash collision found, and duplicates aren't allowed.
-      DEBUG_ASSERT(!allow_duplicate_keys);
-      DEBUG_ASSERT(prealloc_state == nullptr);
-      if (key_manager_.compositeKeyCollisionCheck(key, bucket)) {
-        // Duplicate key. Deallocate any variable storage space and return.
-        key_manager_.deallocateVariableLengthKeyStorage(variable_key_size);
-        return HashTablePutResult::kDuplicateKey;
-      }
-    }
-  }
-
-  // Write the key and hash.
-  writeCompositeKeyToBucket(key, hash_code, bucket, prealloc_state);
-
-  // Store the value by using placement new with ValueT's copy constructor.
-  new(static_cast<char*>(bucket) + kValueOffset) uint8_t(value);
-
-  // Update the previous chain pointer to point to the new bucket.
-  pending_chain_ptr->store(pending_chain_ptr_finish_value, std::memory_order_release);
-
-  // We're all done.
-  return HashTablePutResult::kOK;
-}
-
-template <bool resizable,
-          bool serializable,
-          bool force_key_copy,
-          bool allow_duplicate_keys>
-HashTablePutResult
-    FastSeparateChainingHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
         ::putCompositeKeyInternalFast(const std::vector<TypedValue> &key,
                                   const std::size_t variable_key_size,
                                   const uint8_t *init_value_ptr,
@@ -923,76 +843,14 @@ HashTablePutResult
   return HashTablePutResult::kOK;
 }
 
-
-template <bool resizable,
-          bool serializable,
-          bool force_key_copy,
-          bool allow_duplicate_keys>
-uint8_t* FastSeparateChainingHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-    ::upsertInternal(const TypedValue &key,
-                     const std::size_t variable_key_size,
-                     const uint8_t &initial_value) {
-  DEBUG_ASSERT(!allow_duplicate_keys);
-  DEBUG_ASSERT(this->key_types_.size() == 1);
-  DEBUG_ASSERT(key.isPlausibleInstanceOf(this->key_types_.front()->getSignature()));
-
-  if (variable_key_size > 0) {
-    // Don't allocate yet, since the key may already be present. However, we
-    // do check if either the allocated variable storage space OR the free
-    // space is big enough to hold the key (at least one must be true: either
-    // the key is already present and allocated, or we need to be able to
-    // allocate enough space for it).
-    std::size_t allocated_bytes = header_->variable_length_bytes_allocated.load(std::memory_order_relaxed);
-    if ((allocated_bytes < variable_key_size)
-        && (allocated_bytes + variable_key_size > key_manager_.getVariableLengthKeyStorageSize())) {
-      return nullptr;
-    }
-  }
-
-  const std::size_t hash_code = key.getHash();
-  void *bucket = nullptr;
-  std::atomic<std::size_t> *pending_chain_ptr;
-  std::size_t pending_chain_ptr_finish_value;
-  for (;;) {
-    if (locateBucketForInsertion(hash_code,
-                                 variable_key_size,
-                                 &bucket,
-                                 &pending_chain_ptr,
-                                 &pending_chain_ptr_finish_value,
-                                 nullptr)) {
-      // Found an empty bucket.
-      break;
-    } else if (bucket == nullptr) {
-      // Ran out of buckets or variable-key space.
-      return nullptr;
-    } else if (key_manager_.scalarKeyCollisionCheck(key, bucket)) {
-      // Found an already-existing entry for this key.
-      return reinterpret_cast<uint8_t*>(static_cast<char*>(bucket) + kValueOffset);
-    }
-  }
-
-  // We are now writing to an empty bucket.
-  // Write the key and hash.
-  writeScalarKeyToBucket(key, hash_code, bucket, nullptr);
-
-  // Copy the supplied 'initial_value' into place.
-  uint8_t *value = new(static_cast<char*>(bucket) + kValueOffset) uint8_t(initial_value);
-
-  // Update the previous chain pointer to point to the new bucket.
-  pending_chain_ptr->store(pending_chain_ptr_finish_value, std::memory_order_release);
-
-  // Return the value.
-  return value;
-}
-
 template <bool resizable,
           bool serializable,
           bool force_key_copy,
           bool allow_duplicate_keys>
 uint8_t* FastSeparateChainingHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
     ::upsertInternalFast(const TypedValue &key,
-                     const std::uint8_t *init_value_ptr,
-                     const std::size_t variable_key_size) {
+                     const std::size_t variable_key_size,
+                     const std::uint8_t *init_value_ptr) {
   DEBUG_ASSERT(!allow_duplicate_keys);
   DEBUG_ASSERT(this->key_types_.size() == 1);
   DEBUG_ASSERT(key.isPlausibleInstanceOf(this->key_types_.front()->getSignature()));
@@ -1046,67 +904,6 @@ uint8_t* FastSeparateChainingHashTable<resizable, serializable, force_key_copy, 
         memcpy(value, init_value_ptr, this->total_payload_size_);
 
   // Update the previous chain pointer to point to the new bucket.
-  pending_chain_ptr->store(pending_chain_ptr_finish_value, std::memory_order_release);
-
-  // Return the value.
-  return value;
-}
-
-
-template <bool resizable,
-          bool serializable,
-          bool force_key_copy,
-          bool allow_duplicate_keys>
-uint8_t* FastSeparateChainingHashTable<resizable, serializable, force_key_copy, allow_duplicate_keys>
-    ::upsertCompositeKeyInternal(const std::vector<TypedValue> &key,
-                                 const std::size_t variable_key_size,
-                                 const uint8_t &initial_value) {
-  DEBUG_ASSERT(!allow_duplicate_keys);
-  DEBUG_ASSERT(this->key_types_.size() == key.size());
-
-  if (variable_key_size > 0) {
-    // Don't allocate yet, since the key may already be present. However, we
-    // do check if either the allocated variable storage space OR the free
-    // space is big enough to hold the key (at least one must be true: either
-    // the key is already present and allocated, or we need to be able to
-    // allocate enough space for it).
-    std::size_t allocated_bytes = header_->variable_length_bytes_allocated.load(std::memory_order_relaxed);
-    if ((allocated_bytes < variable_key_size)
-        && (allocated_bytes + variable_key_size > key_manager_.getVariableLengthKeyStorageSize())) {
-      return nullptr;
-    }
-  }
-
-  const std::size_t hash_code = this->hashCompositeKey(key);
-  void *bucket = nullptr;
-  std::atomic<std::size_t> *pending_chain_ptr;
-  std::size_t pending_chain_ptr_finish_value;
-  for (;;) {
-    if (locateBucketForInsertion(hash_code,
-                                 variable_key_size,
-                                 &bucket,
-                                 &pending_chain_ptr,
-                                 &pending_chain_ptr_finish_value,
-                                 nullptr)) {
-      // Found an empty bucket.
-      break;
-    } else if (bucket == nullptr) {
-      // Ran out of buckets or variable-key space.
-      return nullptr;
-    } else if (key_manager_.compositeKeyCollisionCheck(key, bucket)) {
-      // Found an already-existing entry for this key.
-      return reinterpret_cast<uint8_t*>(static_cast<char*>(bucket) + kValueOffset);
-    }
-  }
-
-  // We are now writing to an empty bucket.
-  // Write the key and hash.
-  writeCompositeKeyToBucket(key, hash_code, bucket, nullptr);
-
-  // Copy the supplied 'initial_value' into place.
-  uint8_t *value = new(static_cast<char*>(bucket) + kValueOffset) uint8_t(initial_value);
-
-  // Update the previous chaing pointer to point to the new bucket.
   pending_chain_ptr->store(pending_chain_ptr_finish_value, std::memory_order_release);
 
   // Return the value.

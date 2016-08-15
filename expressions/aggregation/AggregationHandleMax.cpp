@@ -88,16 +88,6 @@ void AggregationHandleMax::aggregateValueAccessorIntoHashTable(
     AggregationStateHashTableBase *hash_table) const {
   DCHECK_EQ(1u, argument_ids.size())
       << "Got wrong number of arguments for MAX: " << argument_ids.size();
-
-/*  aggregateValueAccessorIntoHashTableUnaryHelper<
-      AggregationHandleMax,
-      AggregationStateMax,
-      AggregationStateHashTable<AggregationStateMax>>(
-          accessor,
-          argument_ids.front(),
-          group_by_key_ids,
-          AggregationStateMax(type_),
-          hash_table);*/
 }
 
 void AggregationHandleMax::mergeStates(
@@ -143,20 +133,14 @@ AggregationState* AggregationHandleMax::aggregateOnDistinctifyHashTableForSingle
 
 void AggregationHandleMax::aggregateOnDistinctifyHashTableForGroupBy(
     const AggregationStateHashTableBase &distinctify_hash_table,
-    AggregationStateHashTableBase *aggregation_hash_table, int index) const {
+    AggregationStateHashTableBase *aggregation_hash_table,
+    int index) const {
   aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleMax,
       AggregationStateFastHashTable>(
           distinctify_hash_table,
-          aggregation_hash_table, index);
-}
-
-void AggregationHandleMax::mergeGroupByHashTables(
-    const AggregationStateHashTableBase &source_hash_table,
-    AggregationStateHashTableBase *destination_hash_table) const {
-  mergeGroupByHashTablesHelperFast<AggregationHandleMax,
-                               AggregationStateFastHashTable>(
-      source_hash_table, destination_hash_table);
+          aggregation_hash_table,
+          index);
 }
 
 }  // namespace quickstep

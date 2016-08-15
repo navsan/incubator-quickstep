@@ -50,37 +50,6 @@ class ValueAccessor;
  * @brief An upserter class for modifying the destination hash table while
  *        merging two group by hash tables.
  **/
-template <typename HandleT, typename StateT>
-class HashTableStateUpserter {
- public:
-  /**
-   * @brief Constructor.
-   *
-   * @param handle The aggregation handle being used.
-   * @param source_state The aggregation state in the source aggregation hash
-   *        table. The corresponding state (for the same key) in the destination
-   *        hash table will be upserted.
-   **/
-  HashTableStateUpserter(const HandleT &handle, const StateT &source_state)
-      : handle_(handle), source_state_(source_state) {}
-
-  /**
-   * @brief The operator for the functor required for the upsert.
-   *
-   * @param destination_state The aggregation state in the aggregation hash
-   *        table that is being upserted.
-   **/
-  void operator()(StateT *destination_state) {
-    handle_.mergeStates(source_state_, destination_state);
-  }
-
- private:
-  const HandleT &handle_;
-  const StateT &source_state_;
-
-  DISALLOW_COPY_AND_ASSIGN(HashTableStateUpserter);
-};
-
 template <typename HandleT>
 class HashTableStateUpserterFast {
  public:
@@ -110,103 +79,6 @@ class HashTableStateUpserterFast {
   const uint8_t *source_state_;
 
   DISALLOW_COPY_AND_ASSIGN(HashTableStateUpserterFast);
-};
-
-/**
- * @brief A class to support the functor for merging group by hash tables.
- **/
-template <typename HandleT, typename StateT, typename HashTableT>
-class HashTableMerger {
- public:
-  /**
-   * @brief Constructor
-   *
-   * @param handle The Aggregation handle being used.
-   * @param destination_hash_table The destination hash table to which other
-   *        hash tables will be merged.
-   **/
-  HashTableMerger(const HandleT &handle,
-                  AggregationStateHashTableBase *destination_hash_table)
-      : handle_(handle),
-        destination_hash_table_(
-            static_cast<HashTableT *>(destination_hash_table)) {}
-
-  /**
-   * @brief The operator for the functor.
-   *
-   * @param group_by_key The group by key being merged.
-   * @param source_state The aggregation state for the given key in the source
-   *        aggregation hash table.
-   **/
-  inline void operator()(const std::vector<TypedValue> &group_by_key,
-                         const StateT &source_state) {
-    const StateT *original_state =
-        destination_hash_table_->getSingleCompositeKey(group_by_key);
-    if (original_state != nullptr) {
-      HashTableStateUpserter<HandleT, StateT> upserter(
-          handle_, source_state);
-      // The CHECK is required as upsertCompositeKey can return false if the
-      // hash table runs out of space during the upsert process. The ideal
-      // solution will be to retry again if the upsert fails.
-      CHECK(destination_hash_table_->upsertCompositeKey(
-          group_by_key, *original_state, &upserter));
-    } else {
-      destination_hash_table_->putCompositeKey(group_by_key, source_state);
-    }
-  }
-
- private:
-  const HandleT &handle_;
-  HashTableT *destination_hash_table_;
-
-  DISALLOW_COPY_AND_ASSIGN(HashTableMerger);
-};
-
-template <typename HandleT, typename HashTableT>
-class HashTableMergerFast {
- public:
-  /**
-   * @brief Constructor
-   *
-   * @param handle The Aggregation handle being used.
-   * @param destination_hash_table The destination hash table to which other
-   *        hash tables will be merged.
-   **/
-  HashTableMergerFast(const HandleT &handle,
-                  AggregationStateHashTableBase *destination_hash_table)
-      : handle_(handle),
-        destination_hash_table_(
-            static_cast<HashTableT *>(destination_hash_table)) {}
-
-  /**
-   * @brief The operator for the functor.
-   *
-   * @param group_by_key The group by key being merged.
-   * @param source_state The aggregation state for the given key in the source
-   *        aggregation hash table.
-   **/
-  inline void operator()(const std::vector<TypedValue> &group_by_key,
-                         const uint8_t *source_state) {
-    const uint8_t *original_state =
-        destination_hash_table_->getSingleCompositeKey(group_by_key);
-    if (original_state != nullptr) {
-      HashTableStateUpserterFast<HandleT> upserter(
-          handle_, source_state);
-      // The CHECK is required as upsertCompositeKey can return false if the
-      // hash table runs out of space during the upsert process. The ideal
-      // solution will be to retry again if the upsert fails.
-      CHECK(destination_hash_table_->upsertCompositeKeyFast(
-          group_by_key, original_state, &upserter));
-    } else {
-      destination_hash_table_->putCompositeKeyFast(group_by_key, source_state);
-    }
-  }
-
- private:
-  const HandleT &handle_;
-  HashTableT *destination_hash_table_;
-
-  DISALLOW_COPY_AND_ASSIGN(HashTableMergerFast);
 };
 
 /**
@@ -255,55 +127,16 @@ class AggregationConcreteHandle : public AggregationHandle {
   }
 
   template <typename HandleT,
-            typename StateT,
-            typename HashTableT>
-  void aggregateValueAccessorIntoHashTableNullaryHelper(
-      ValueAccessor *accessor,
-      const std::vector<attribute_id> &group_by_key_ids,
-      const StateT &default_state,
-      AggregationStateHashTableBase *hash_table) const;
-
-  template <typename HandleT,
-            typename StateT,
-            typename HashTableT>
-  void aggregateValueAccessorIntoHashTableUnaryHelper(
-      ValueAccessor *accessor,
-      const attribute_id argument_id,
-      const std::vector<attribute_id> &group_by_key_ids,
-      const StateT &default_state,
-      AggregationStateHashTableBase *hash_table) const;
-
-  template <typename HandleT,
-            typename StateT>
-  StateT* aggregateOnDistinctifyHashTableForSingleUnaryHelper(
-      const AggregationStateHashTableBase &distinctify_hash_table) const;
-
-  template <typename HandleT,
             typename StateT>
   StateT* aggregateOnDistinctifyHashTableForSingleUnaryHelperFast(
       const AggregationStateHashTableBase &distinctify_hash_table) const;
 
   template <typename HandleT,
-            typename StateT,
-            typename HashTableT>
-  void aggregateOnDistinctifyHashTableForGroupByUnaryHelper(
-      const AggregationStateHashTableBase &distinctify_hash_table,
-      const StateT &default_state,
-      AggregationStateHashTableBase *hash_table) const;
-
-  template <typename HandleT,
             typename HashTableT>
   void aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *hash_table, int index) const;
-
-
-  template <typename HandleT,
-            typename HashTableT>
-  ColumnVector* finalizeHashTableHelper(
-      const Type &result_type,
-      const AggregationStateHashTableBase &hash_table,
-      std::vector<std::vector<TypedValue>> *group_by_keys) const;
+      AggregationStateHashTableBase *hash_table,
+      int index) const;
 
   template <typename HandleT,
             typename HashTableT>
@@ -312,17 +145,6 @@ class AggregationConcreteHandle : public AggregationHandle {
       const AggregationStateHashTableBase &hash_table,
       std::vector<std::vector<TypedValue>> *group_by_keys,
       int index) const;
-
-  template <typename HandleT, typename HashTableT>
-  inline TypedValue finalizeGroupInHashTable(
-      const AggregationStateHashTableBase &hash_table,
-      const std::vector<TypedValue> &group_key) const {
-    const AggregationState *group_state
-        = static_cast<const HashTableT&>(hash_table).getSingleCompositeKey(group_key);
-    DCHECK(group_state != nullptr)
-        << "Could not find entry for specified group_key in HashTable";
-    return static_cast<const HandleT*>(this)->finalizeHashTableEntry(*group_state);
-  }
 
   template <typename HandleT, typename HashTableT>
   inline TypedValue finalizeGroupInHashTableFast(
@@ -336,64 +158,13 @@ class AggregationConcreteHandle : public AggregationHandle {
     return static_cast<const HandleT*>(this)->finalizeHashTableEntryFast(group_state);
   }
 
-  template <typename HandleT, typename StateT, typename HashTableT>
-  void mergeGroupByHashTablesHelper(
-      const AggregationStateHashTableBase &source_hash_table,
-      AggregationStateHashTableBase *destination_hash_table) const;
-
   template <typename HandleT, typename HashTableT>
   void mergeGroupByHashTablesHelperFast(
       const AggregationStateHashTableBase &source_hash_table,
       AggregationStateHashTableBase *destination_hash_table) const;
 
-
  private:
   DISALLOW_COPY_AND_ASSIGN(AggregationConcreteHandle);
-};
-
-/**
- * @brief Templated class to implement value-accessor-based upserter for each
- *        aggregation state payload type. This version is for nullary
- *        aggregates (those that take no arguments).
- **/
-template <typename HandleT, typename StateT>
-class NullaryAggregationStateValueAccessorUpserter {
- public:
-  explicit NullaryAggregationStateValueAccessorUpserter(const HandleT &handle)
-      : handle_(handle) {
-  }
-
-  template <typename ValueAccessorT>
-  inline void operator()(const ValueAccessorT &accessor, StateT *state) {
-    handle_.iterateNullaryInl(state);
-  }
-
- private:
-  const HandleT &handle_;
-};
-
-/**
- * @brief Templated class to implement value-accessor-based upserter for each
- *        aggregation state payload type. This version is for unary aggregates
- *        (those that take a single argument).
- **/
-template <typename HandleT, typename StateT>
-class UnaryAggregationStateValueAccessorUpserter {
- public:
-  UnaryAggregationStateValueAccessorUpserter(const HandleT &handle,
-                                             attribute_id value_id)
-    : handle_(handle),
-      value_id_(value_id) {
-  }
-
-  template <typename ValueAccessorT>
-  inline void operator()(const ValueAccessorT &accessor, StateT *state) {
-    handle_.iterateUnaryInl(state, accessor.getTypedValue(value_id_));
-  }
-
- private:
-  const HandleT &handle_;
-  const attribute_id value_id_;
 };
 
 /**
@@ -438,68 +209,6 @@ class HashTableAggregateFinalizer {
 // Implementations of templated methods follow:
 
 template <typename HandleT,
-          typename StateT,
-          typename HashTableT>
-void AggregationConcreteHandle::aggregateValueAccessorIntoHashTableNullaryHelper(
-    ValueAccessor *accessor,
-    const std::vector<attribute_id> &group_by_key_ids,
-    const StateT &default_state,
-    AggregationStateHashTableBase *hash_table) const {
-  NullaryAggregationStateValueAccessorUpserter<HandleT, StateT>
-      upserter(static_cast<const HandleT&>(*this));
-  static_cast<HashTableT*>(hash_table)->upsertValueAccessorCompositeKey(
-      accessor,
-      group_by_key_ids,
-      true,
-      default_state,
-      &upserter);
-}
-
-template <typename HandleT,
-          typename StateT,
-          typename HashTableT>
-void AggregationConcreteHandle::aggregateValueAccessorIntoHashTableUnaryHelper(
-    ValueAccessor *accessor,
-    const attribute_id argument_id,
-    const std::vector<attribute_id> &group_by_key_ids,
-    const StateT &default_state,
-    AggregationStateHashTableBase *hash_table) const {
-  UnaryAggregationStateValueAccessorUpserter<HandleT, StateT>
-      upserter(static_cast<const HandleT&>(*this), argument_id);
-  static_cast<HashTableT*>(hash_table)->upsertValueAccessorCompositeKey(
-      accessor,
-      group_by_key_ids,
-      true,
-      default_state,
-      &upserter);
-}
-
-template <typename HandleT,
-          typename StateT>
-StateT* AggregationConcreteHandle::aggregateOnDistinctifyHashTableForSingleUnaryHelper(
-    const AggregationStateHashTableBase &distinctify_hash_table) const {
-  const HandleT& handle = static_cast<const HandleT&>(*this);
-  StateT *state = static_cast<StateT*>(createInitialState());
-
-  // A lambda function which will be called on each key from the distinctify
-  // hash table.
-  const auto aggregate_functor = [&handle, &state](const TypedValue &key,
-                                                   const bool &dumb_placeholder) {
-    // For each (unary) key in the distinctify hash table, aggregate the key
-    // into "state".
-    handle.iterateUnaryInl(state, key);
-  };
-
-  const AggregationStateHashTable<bool> &hash_table =
-      static_cast<const AggregationStateHashTable<bool>&>(distinctify_hash_table);
-  // Invoke the lambda function "aggregate_functor" on each key from the distinctify
-  // hash table.
-  hash_table.forEach(&aggregate_functor);
-
-  return state;
-}
-
-template <typename HandleT,
           typename StateT>
 StateT* AggregationConcreteHandle::aggregateOnDistinctifyHashTableForSingleUnaryHelperFast(
     const AggregationStateHashTableBase &distinctify_hash_table) const {
@@ -525,47 +234,11 @@ StateT* AggregationConcreteHandle::aggregateOnDistinctifyHashTableForSingleUnary
 }
 
 template <typename HandleT,
-          typename StateT,
-          typename HashTableT>
-void AggregationConcreteHandle::aggregateOnDistinctifyHashTableForGroupByUnaryHelper(
-    const AggregationStateHashTableBase &distinctify_hash_table,
-    const StateT &default_state,
-    AggregationStateHashTableBase *aggregation_hash_table) const {
-  const HandleT& handle = static_cast<const HandleT&>(*this);
-  HashTableT *target_hash_table = static_cast<HashTableT*>(aggregation_hash_table);
-
-  // A lambda function which will be called on each key-value pair from the
-  // distinctify hash table.
-  const auto aggregate_functor = [&handle, &target_hash_table, &default_state](
-      std::vector<TypedValue> &key,
-      const bool &dumb_placeholder) {
-    // For each (composite) key vector in the distinctify hash table with size N.
-    // The first N-1 entries are GROUP BY columns and the last entry is the argument
-    // to be aggregated on.
-    const TypedValue argument(std::move(key.back()));
-    key.pop_back();
-
-    // An upserter as lambda function for aggregating the argument into its
-    // GROUP BY group's entry inside aggregation_hash_table.
-    const auto upserter = [&handle, &argument](StateT *state) {
-      handle.iterateUnaryInl(state, argument);
-    };
-
-    target_hash_table->upsertCompositeKey(key, default_state, &upserter);
-  };
-
-  const AggregationStateHashTable<bool> &source_hash_table =
-      static_cast<const AggregationStateHashTable<bool>&>(distinctify_hash_table);
-  // Invoke the lambda function "aggregate_functor" on each composite key vector
-  // from the distinctify hash table.
-  source_hash_table.forEachCompositeKey(&aggregate_functor);
-}
-
-template <typename HandleT,
           typename HashTableT>
 void AggregationConcreteHandle::aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast(
     const AggregationStateHashTableBase &distinctify_hash_table,
-    AggregationStateHashTableBase *aggregation_hash_table, int index) const {
+    AggregationStateHashTableBase *aggregation_hash_table,
+    int index) const {
   const HandleT& handle = static_cast<const HandleT&>(*this);
   HashTableT *target_hash_table = static_cast<HashTableT*>(aggregation_hash_table);
 
@@ -594,57 +267,6 @@ void AggregationConcreteHandle::aggregateOnDistinctifyHashTableForGroupByUnaryHe
   // Invoke the lambda function "aggregate_functor" on each composite key vector
   // from the distinctify hash table.
   source_hash_table.forEachCompositeKeyFast(&aggregate_functor);
-}
-
-
-template <typename HandleT,
-          typename HashTableT>
-ColumnVector* AggregationConcreteHandle::finalizeHashTableHelper(
-    const Type &result_type,
-    const AggregationStateHashTableBase &hash_table,
-    std::vector<std::vector<TypedValue>> *group_by_keys) const {
-  const HandleT &handle = static_cast<const HandleT&>(*this);
-  const HashTableT &hash_table_concrete = static_cast<const HashTableT&>(hash_table);
-
-  if (group_by_keys->empty()) {
-    if (NativeColumnVector::UsableForType(result_type)) {
-      NativeColumnVector *result = new NativeColumnVector(result_type,
-                                                          hash_table_concrete.numEntries());
-      HashTableAggregateFinalizer<HandleT, NativeColumnVector> finalizer(
-          handle,
-          group_by_keys,
-          result);
-      hash_table_concrete.forEachCompositeKey(&finalizer);
-      return result;
-    } else {
-      IndirectColumnVector *result = new IndirectColumnVector(result_type,
-                                                              hash_table_concrete.numEntries());
-      HashTableAggregateFinalizer<HandleT, IndirectColumnVector> finalizer(
-          handle,
-          group_by_keys,
-          result);
-      hash_table_concrete.forEachCompositeKey(&finalizer);
-      return result;
-    }
-  } else {
-    if (NativeColumnVector::UsableForType(result_type)) {
-      NativeColumnVector *result = new NativeColumnVector(result_type,
-                                                          group_by_keys->size());
-      for (const std::vector<TypedValue> &group_by_key : *group_by_keys) {
-        result->appendTypedValue(finalizeGroupInHashTable<HandleT, HashTableT>(hash_table,
-                                                                               group_by_key));
-      }
-      return result;
-    } else {
-      IndirectColumnVector *result = new IndirectColumnVector(result_type,
-                                                              hash_table_concrete.numEntries());
-      for (const std::vector<TypedValue> &group_by_key : *group_by_keys) {
-        result->appendTypedValue(finalizeGroupInHashTable<HandleT, HashTableT>(hash_table,
-                                                                               group_by_key));
-      }
-      return result;
-    }
-  }
 }
 
 template <typename HandleT,
@@ -699,38 +321,6 @@ ColumnVector* AggregationConcreteHandle::finalizeHashTableHelperFast(
     }
   }
 }
-
-template <typename HandleT,
-          typename StateT,
-          typename HashTableT>
-void AggregationConcreteHandle::mergeGroupByHashTablesHelper(
-    const AggregationStateHashTableBase &source_hash_table,
-    AggregationStateHashTableBase *destination_hash_table) const {
-  const HandleT &handle = static_cast<const HandleT &>(*this);
-  const HashTableT &source_hash_table_concrete =
-      static_cast<const HashTableT &>(source_hash_table);
-
-  HashTableMerger<HandleT, StateT, HashTableT> merger(handle,
-                                                      destination_hash_table);
-
-  source_hash_table_concrete.forEachCompositeKey(&merger);
-}
-
-template <typename HandleT,
-          typename HashTableT>
-void AggregationConcreteHandle::mergeGroupByHashTablesHelperFast(
-    const AggregationStateHashTableBase &source_hash_table,
-    AggregationStateHashTableBase *destination_hash_table) const {
-  const HandleT &handle = static_cast<const HandleT &>(*this);
-  const HashTableT &source_hash_table_concrete =
-      static_cast<const HashTableT &>(source_hash_table);
-
-  HashTableMergerFast<HandleT, HashTableT> merger(handle,
-                                              destination_hash_table);
-
-  source_hash_table_concrete.forEachCompositeKeyFast(&merger);
-}
-
 
 }  // namespace quickstep
 

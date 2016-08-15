@@ -113,7 +113,7 @@ class AggregationHandleCount : public AggregationConcreteHandle {
     state->count_.fetch_add(1, std::memory_order_relaxed);
   }
 
-  inline void iterateNullaryInlFast(uint8_t *byte_ptr) {
+  inline void iterateNullaryInlFast(uint8_t *byte_ptr) const {
       std::int64_t *count_ptr = reinterpret_cast<std::int64_t *>(byte_ptr);
       (*count_ptr)++;
   }
@@ -134,7 +134,7 @@ class AggregationHandleCount : public AggregationConcreteHandle {
     }
   }
 
-  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) override {
+  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) const override {
      if (block_update) return;
      if (arguments.size())
          iterateUnaryInlFast(arguments.front(), byte_ptr);
@@ -150,7 +150,7 @@ class AggregationHandleCount : public AggregationConcreteHandle {
      block_update = false;
   }
 
-  void initPayload(uint8_t *byte_ptr) override {
+  void initPayload(uint8_t *byte_ptr) const override {
      std::int64_t *count_ptr = reinterpret_cast<std::int64_t *>(byte_ptr);
      *count_ptr = 0;
   }
@@ -217,11 +217,8 @@ class AggregationHandleCount : public AggregationConcreteHandle {
    */
   void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
-      AggregationStateHashTableBase *aggregation_hash_table, int index) const override;
-
-  void mergeGroupByHashTables(
-      const AggregationStateHashTableBase &source_hash_table,
-      AggregationStateHashTableBase *destination_hash_table) const override;
+      AggregationStateHashTableBase *aggregation_hash_table,
+      int index) const override;
 
   size_t getPayloadSize() const override {
       return sizeof(std::int64_t);
