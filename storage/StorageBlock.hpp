@@ -44,6 +44,7 @@ class AggregationState;
 class CatalogRelationSchema;
 class ColumnVector;
 class InsertDestinationInterface;
+class PartitionedHashTablePool;
 class Predicate;
 class Scalar;
 class StorageBlockLayout;
@@ -466,6 +467,14 @@ class StorageBlock : public StorageBlockBase {
       AggregationStateHashTableBase *hash_table,
       std::unique_ptr<TupleIdSequence> *reuse_matches,
       std::vector<std::unique_ptr<ColumnVector>> *reuse_group_by_vectors) const;
+
+  void aggregateGroupByPartitioned(
+      const std::vector<std::vector<std::unique_ptr<const Scalar>>> &arguments,
+      const std::vector<std::unique_ptr<const Scalar>> &group_by,
+      const Predicate *predicate,
+      std::unique_ptr<TupleIdSequence> *reuse_matches,
+      std::vector<std::unique_ptr<ColumnVector>> *reuse_group_by_vectors,
+      PartitionedHashTablePool *hashtable_pool) const;
 
   /**
    * @brief Inserts the GROUP BY expressions and aggregation arguments together

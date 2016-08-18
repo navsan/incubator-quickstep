@@ -68,7 +68,8 @@ AggregationOperationState::AggregationOperationState(
     const HashTableImplType hash_table_impl_type,
     const std::vector<HashTableImplType> &distinctify_hash_table_impl_types,
     StorageManager *storage_manager)
-    : input_relation_(input_relation),
+    : is_aggregate_partitioned_(estimated_num_entries > kPartitionedAggregateThreshold),
+      input_relation_(input_relation),
       predicate_(predicate),
       group_by_list_(std::move(group_by)),
       arguments_(std::move(arguments)),
@@ -193,14 +194,26 @@ AggregationOperationState::AggregationOperationState(
     }
 
     if (!group_by_handles.empty()) {
-      // Aggregation with GROUP BY: create a HashTable pool for per-group
-      // states.
-      group_by_hashtable_pool_.reset(new HashTablePool(estimated_num_entries,
-                                                       hash_table_impl_type,
-                                                       group_by_types,
-                                                       payload_sizes,
-                                                       group_by_handles,
-                                                       storage_manager));
+      // Aggregation with GROUP BY: create a HashTable pool for per-group states.
+      if (!is_aggregate_partitioned_) {
+        group_by_hashtable_pools_.emplace_back(std::unique_ptr<HashTablePool>(
+              new HashTablePool(estimated_num_entries,
+                                hash_table_impl_type,
+                                group_by_types,
+                                payload_sizes,
+                                group_by_handles,
+                                storage_manager)));
+        }
+      else {
+        partitioned_group_by_hashtable_pool_.reset(
+            new PartitionedHashTablePool(estimated_num_entries,
+                                         kNumPartitionsForAggregate,
+                                         hash_table_impl_type,
+                                         group_by_types,
+                                         payload_sizes,
+                                         group_by_handles,
+                                         storage_manager));
+      }
     }
   }
 }
@@ -439,20 +452,29 @@ void AggregationOperationState::aggregateBlockHashTable(
     }
   }
 
-  // Call StorageBlock::aggregateGroupBy() to aggregate this block's values
-  // directly into the (threadsafe) shared global HashTable for this
-  // aggregate.
-  DCHECK(group_by_hashtable_pool_ != nullptr);
-  AggregationStateHashTableBase *agg_hash_table =
-      group_by_hashtable_pool_->getHashTableFast();
-  DCHECK(agg_hash_table != nullptr);
-  block->aggregateGroupBy(arguments_,
-                          group_by_list_,
-                          predicate_.get(),
-                          agg_hash_table,
-                          &reuse_matches,
-                          &reuse_group_by_vectors);
-  group_by_hashtable_pool_->returnHashTable(agg_hash_table);
+  if (!is_aggregate_partitioned_) {
+    // Call StorageBlock::aggregateGroupBy() to aggregate this block's values
+    // directly into the (threadsafe) shared global HashTable for this
+    // aggregate.
+    DCHECK(group_by_hashtable_pools_[0] != nullptr);
+    AggregationStateHashTableBase *agg_hash_table = group_by_hashtable_pools_[0]->getHashTableFast();
+    DCHECK(agg_hash_table != nullptr);
+    block->aggregateGroupByFast(arguments_,
+                                group_by_list_,
+                                predicate_.get(),
+                                agg_hash_table,
+                                &reuse_matches,
+                                &reuse_group_by_vectors);
+    group_by_hashtable_pools_[0]->returnHashTable(agg_hash_table);
+  } else {
+    block->aggregateGroupByPartitioned(
+        arguments_,
+        group_by_list_,
+        predicate_.get(),
+        &reuse_matches,
+        &reuse_group_by_vectors,
+        partitioned_group_by_hashtable_pool_.get());
+  }
 }
 
 void AggregationOperationState::finalizeSingleState(

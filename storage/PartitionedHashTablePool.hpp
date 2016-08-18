@@ -143,6 +143,10 @@ class PartitionedHashTablePool {
     return &hash_tables_;
   }
 
+  inline std::size_t getNumPartitions() const {
+    return num_partitions_;
+  }
+
  private:
   void initializeAllHashTables() {
     for (std::size_t part_num = 0; part_num < num_partitions_; ++part_num) {
