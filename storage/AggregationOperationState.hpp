@@ -168,8 +168,37 @@ class AggregationOperationState {
    **/
   void finalizeAggregate(InsertDestination *output_destination);
 
-  static void mergeGroupByHashTables(AggregationStateHashTableBase *src,
-                                     AggregationStateHashTableBase *dst);
+  /**
+   * @brief Generate the final results for the aggregates managed by this
+   *        AggregationOperationState, for the given partition and write them
+   *        out to StorageBlock(s).
+   *
+   * @param partition_id The Partition ID for which the finalize has to be
+   *        performed.
+   * @param output_destination An InsertDestination where the finalized output
+   *        tuple(s) from this aggregate are to be written.
+   **/
+  void finalizeAggregatePartitioned(const std::size_t partition_id,
+                                    InsertDestination *output_destination);
+
+  bool isAggregatePartitioned() const {
+    return is_aggregate_partitioned_;
+  }
+
+  /**
+   * @brief Get the number of partitions used for the aggregation.
+   *
+   * @note This is relevant only when is_aggregate_partitioned_ is true.
+   *
+   * @return The number of partitions used for the aggregation. Default is 1.
+   **/
+  std::size_t getNumPartitions() const {
+    if (is_aggregate_partitioned_) {
+      return partitioned_group_by_hashtable_pool_->getNumPartitions();
+    } else {
+      return 1;
+    }
+  }
 
   int dflag;
 
