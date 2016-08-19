@@ -68,7 +68,7 @@ AggregationOperationState::AggregationOperationState(
     const HashTableImplType hash_table_impl_type,
     const std::vector<HashTableImplType> &distinctify_hash_table_impl_types,
     StorageManager *storage_manager)
-    : is_aggregate_partitioned_(estimated_num_entries > kPartitionedAggregateThreshold),
+    : is_aggregate_partitioned_(estimated_num_entries > kPartitionedAggregateThreshold && !group_by.empty()),
       input_relation_(input_relation),
       predicate_(predicate),
       group_by_list_(std::move(group_by)),
@@ -76,6 +76,7 @@ AggregationOperationState::AggregationOperationState(
       is_distinct_(std::move(is_distinct)),
       storage_manager_(storage_manager) {
   // Sanity checks: each aggregate has a corresponding list of arguments.
+  LOG(INFO) << "Aggregate partitioned: " << is_aggregate_partitioned_ << " with estimated # entries: " << estimated_num_entries;
   DCHECK(aggregate_functions.size() == arguments_.size());
 
   // Get the types of GROUP BY expressions for creating HashTables below.

@@ -181,6 +181,11 @@ class AggregationOperationState {
   void finalizeAggregatePartitioned(const std::size_t partition_id,
                                     InsertDestination *output_destination);
 
+  /**
+   * @brief Find if the aggregation has been performed in a partitoned way.
+   *
+   * @note At present the partitioning is enabled only with GROUP BY.
+   **/
   bool isAggregatePartitioned() const {
     return is_aggregate_partitioned_;
   }
