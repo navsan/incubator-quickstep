@@ -1377,7 +1377,7 @@ void StorageBlock::aggregateGroupByPartitioned(
     std::unique_ptr<TupleIdSequence> *reuse_matches,
     std::vector<std::unique_ptr<ColumnVector>> *reuse_group_by_vectors,
     PartitionedHashTablePool *hashtable_pool) const {
-  DCHECK_EQ(group_by.size(), 0u)
+  DCHECK(!group_by.empty())
       << "Called aggregateGroupByPartitioned() with zero GROUP BY expressions";
 
   SubBlocksReference sub_blocks_ref(*tuple_store_,
