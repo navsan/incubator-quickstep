@@ -28,8 +28,8 @@
 #include "catalog/CatalogTypedefs.hpp"
 #include "expressions/aggregation/AggregationConcreteHandle.hpp"
 #include "expressions/aggregation/AggregationHandle.hpp"
-#include "storage/HashTableBase.hpp"
 #include "storage/FastHashTable.hpp"
+#include "storage/HashTableBase.hpp"
 #include "threading/SpinMutex.hpp"
 #include "types/Type.hpp"
 #include "types/TypedValue.hpp"
@@ -56,25 +56,24 @@ class AggregationStateMax : public AggregationState {
   /**
    * @brief Copy constructor (ignores mutex).
    */
-  AggregationStateMax(const AggregationStateMax &orig)
-      : max_(orig.max_) {
-  }
+  AggregationStateMax(const AggregationStateMax &orig) : max_(orig.max_) {}
 
   /**
    * @brief Destructor.
    */
-  ~AggregationStateMax() override {};
+  ~AggregationStateMax() override{};
+
+  const std::uint8_t* getPayloadAddress() const {
+    return reinterpret_cast<const uint8_t *>(&max_);
+  }
 
  private:
   friend class AggregationHandleMax;
 
   explicit AggregationStateMax(const Type &type)
-      : max_(type.getNullableVersion().makeNullValue()) {
-  }
+      : max_(type.getNullableVersion().makeNullValue()) {}
 
-  explicit AggregationStateMax(TypedValue &&value)
-      : max_(std::move(value)) {
-  }
+  explicit AggregationStateMax(TypedValue &&value) : max_(std::move(value)) {}
 
   TypedValue max_;
   SpinMutex mutex_;
@@ -85,8 +84,7 @@ class AggregationStateMax : public AggregationState {
  **/
 class AggregationHandleMax : public AggregationConcreteHandle {
  public:
-  ~AggregationHandleMax() override {
-  }
+  ~AggregationHandleMax() override {}
 
   AggregationState* createInitialState() const override {
     return new AggregationStateMax(type_);
@@ -94,45 +92,46 @@ class AggregationHandleMax : public AggregationConcreteHandle {
 
   AggregationStateHashTableBase* createGroupByHashTable(
       const HashTableImplType hash_table_impl,
-      const std::vector<const Type*> &group_by_types,
+      const std::vector<const Type *> &group_by_types,
       const std::size_t estimated_num_groups,
       StorageManager *storage_manager) const override;
 
   /**
    * @brief Iterate with max aggregation state.
    */
-  inline void iterateUnaryInl(AggregationStateMax *state, const TypedValue &value) const {
+  inline void iterateUnaryInl(AggregationStateMax *state,
+                              const TypedValue &value) const {
     DCHECK(value.isPlausibleInstanceOf(type_.getSignature()));
-    compareAndUpdate(static_cast<AggregationStateMax*>(state), value);
+    compareAndUpdate(static_cast<AggregationStateMax *>(state), value);
   }
 
-  inline void iterateUnaryInlFast(const TypedValue &value, std::uint8_t *byte_ptr) const {
+  inline void iterateUnaryInlFast(const TypedValue &value,
+                                  std::uint8_t *byte_ptr) const {
     DCHECK(value.isPlausibleInstanceOf(type_.getSignature()));
     TypedValue *max_ptr = reinterpret_cast<TypedValue *>(byte_ptr);
     compareAndUpdateFast(max_ptr, value);
   }
 
-  inline void iterateInlFast(const std::vector<TypedValue> &arguments, uint8_t *byte_ptr) const override {
-    if (block_update) return;
-    iterateUnaryInlFast(arguments.front(), byte_ptr);
+  inline void updateState(const std::vector<TypedValue> &arguments,
+                          std::uint8_t *byte_ptr) const override {
+    if (!block_update_) {
+      iterateUnaryInlFast(arguments.front(), byte_ptr);
+    }
   }
 
-  void BlockUpdate() override {
-      block_update = true;
-  }
+  void blockUpdate() override { block_update_ = true; }
 
-  void AllowUpdate() override {
-      block_update = false;
-  }
+  void allowUpdate() override { block_update_ = false; }
 
-  void initPayload(uint8_t *byte_ptr) const override {
+  void initPayload(std::uint8_t *byte_ptr) const override {
     TypedValue *max_ptr = reinterpret_cast<TypedValue *>(byte_ptr);
     TypedValue t1 = (type_.getNullableVersion().makeNullValue());
     *max_ptr = t1;
   }
 
   AggregationState* accumulateColumnVectors(
-      const std::vector<std::unique_ptr<ColumnVector>> &column_vectors) const override;
+      const std::vector<std::unique_ptr<ColumnVector>> &column_vectors)
+      const override;
 
 #ifdef QUICKSTEP_ENABLE_VECTOR_COPY_ELISION_SELECTION
   AggregationState* accumulateValueAccessor(
@@ -150,17 +149,19 @@ class AggregationHandleMax : public AggregationConcreteHandle {
                    AggregationState *destination) const override;
 
   void mergeStatesFast(const std::uint8_t *source,
-                   std::uint8_t *destination) const override;
+                       std::uint8_t *destination) const override;
 
   TypedValue finalize(const AggregationState &state) const override {
-    return TypedValue(static_cast<const AggregationStateMax&>(state).max_);
+    return TypedValue(static_cast<const AggregationStateMax &>(state).max_);
   }
 
-  inline TypedValue finalizeHashTableEntry(const AggregationState &state) const {
-    return TypedValue(static_cast<const AggregationStateMax&>(state).max_);
+  inline TypedValue finalizeHashTableEntry(
+      const AggregationState &state) const {
+    return TypedValue(static_cast<const AggregationStateMax &>(state).max_);
   }
 
-  inline TypedValue finalizeHashTableEntryFast(const std::uint8_t *byte_ptr) const {
+  inline TypedValue finalizeHashTableEntryFast(
+      const std::uint8_t *byte_ptr) const {
     const TypedValue *max_ptr = reinterpret_cast<const TypedValue *>(byte_ptr);
     return TypedValue(*max_ptr);
   }
@@ -171,25 +172,25 @@ class AggregationHandleMax : public AggregationConcreteHandle {
       int index) const override;
 
   /**
-   * @brief Implementation of AggregationHandle::aggregateOnDistinctifyHashTableForSingle()
+   * @brief Implementation of
+   * AggregationHandle::aggregateOnDistinctifyHashTableForSingle()
    *        for MAX aggregation.
    */
   AggregationState* aggregateOnDistinctifyHashTableForSingle(
-      const AggregationStateHashTableBase &distinctify_hash_table) const override;
-
+      const AggregationStateHashTableBase &distinctify_hash_table)
+      const override;
 
   /**
-   * @brief Implementation of AggregationHandle::aggregateOnDistinctifyHashTableForGroupBy()
+   * @brief Implementation of
+   * AggregationHandle::aggregateOnDistinctifyHashTableForGroupBy()
    *        for MAX aggregation.
    */
   void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
       AggregationStateHashTableBase *aggregation_hash_table,
-      int index) const override;
+      std::size_t index) const override;
 
-  size_t getPayloadSize() const override {
-      return sizeof(TypedValue);
-  }
+  std::size_t getPayloadSize() const override { return sizeof(TypedValue); }
 
  private:
   friend class AggregateFunctionMax;
@@ -202,24 +203,29 @@ class AggregationHandleMax : public AggregationConcreteHandle {
   explicit AggregationHandleMax(const Type &type);
 
   /**
-   * @brief compare the value with max_ and update it if the value is larger than
+   * @brief compare the value with max_ and update it if the value is larger
+   *than
    *        current maximum. NULLs are ignored.
    *
    * @param value A TypedValue to compare
    **/
-  inline void compareAndUpdate(AggregationStateMax *state, const TypedValue &value) const {
+  inline void compareAndUpdate(AggregationStateMax *state,
+                               const TypedValue &value) const {
     // TODO(chasseur): Avoid null-checks when aggregating a non-nullable Type.
     if (value.isNull()) return;
 
     SpinMutexLock lock(state->mutex_);
-    if (state->max_.isNull() || fast_comparator_->compareTypedValues(value, state->max_)) {
+    if (state->max_.isNull() ||
+        fast_comparator_->compareTypedValues(value, state->max_)) {
       state->max_ = value;
     }
   }
 
-  inline void compareAndUpdateFast(TypedValue *max_ptr, const TypedValue &value) const {
+  inline void compareAndUpdateFast(TypedValue *max_ptr,
+                                   const TypedValue &value) const {
     if (value.isNull()) return;
-    if (max_ptr->isNull() || fast_comparator_->compareTypedValues(value, *max_ptr)) {
+    if (max_ptr->isNull() ||
+        fast_comparator_->compareTypedValues(value, *max_ptr)) {
       *max_ptr = value;
     }
   }
@@ -227,7 +233,7 @@ class AggregationHandleMax : public AggregationConcreteHandle {
   const Type &type_;
   std::unique_ptr<UncheckedComparator> fast_comparator_;
 
-  bool block_update;
+  bool block_update_;
 
   DISALLOW_COPY_AND_ASSIGN(AggregationHandleMax);
 };

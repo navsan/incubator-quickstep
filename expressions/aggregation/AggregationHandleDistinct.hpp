@@ -49,27 +49,32 @@ class AggregationHandleDistinct : public AggregationConcreteHandle {
   /**
    * @brief Constructor.
    **/
-  AggregationHandleDistinct() {
-  }
+  AggregationHandleDistinct() {}
 
   AggregationState* createInitialState() const override {
-    LOG(FATAL) << "AggregationHandleDistinct does not support createInitialState().";
+    LOG(FATAL)
+        << "AggregationHandleDistinct does not support createInitialState().";
   }
 
-  AggregationState* accumulateNullary(const std::size_t num_tuples) const override {
-    LOG(FATAL) << "AggregationHandleDistinct does not support accumulateNullary().";
+  AggregationState* accumulateNullary(
+      const std::size_t num_tuples) const override {
+    LOG(FATAL)
+        << "AggregationHandleDistinct does not support accumulateNullary().";
   }
 
   AggregationState* accumulateColumnVectors(
-      const std::vector<std::unique_ptr<ColumnVector>> &column_vectors) const override {
-    LOG(FATAL) << "AggregationHandleDistinct does not support accumulateColumnVectors().";
+      const std::vector<std::unique_ptr<ColumnVector>> &column_vectors)
+      const override {
+    LOG(FATAL) << "AggregationHandleDistinct does not support "
+                  "accumulateColumnVectors().";
   }
 
 #ifdef QUICKSTEP_ENABLE_VECTOR_COPY_ELISION_SELECTION
   AggregationState* accumulateValueAccessor(
       ValueAccessor *accessor,
       const std::vector<attribute_id> &accessor_ids) const override {
-    LOG(FATAL) << "AggregationHandleDistinct does not support accumulateValueAccessor().";
+    LOG(FATAL) << "AggregationHandleDistinct does not support "
+                  "accumulateValueAccessor().";
   }
 #endif
 
@@ -83,7 +88,8 @@ class AggregationHandleDistinct : public AggregationConcreteHandle {
   }
 
   AggregationState* aggregateOnDistinctifyHashTableForSingle(
-      const AggregationStateHashTableBase &distinctify_hash_table) const override {
+      const AggregationStateHashTableBase &distinctify_hash_table)
+      const override {
     LOG(FATAL) << "AggregationHandleDistinct does not support "
                << "aggregateOnDistinctifyHashTableForSingle().";
   }
@@ -91,14 +97,14 @@ class AggregationHandleDistinct : public AggregationConcreteHandle {
   void aggregateOnDistinctifyHashTableForGroupBy(
       const AggregationStateHashTableBase &distinctify_hash_table,
       AggregationStateHashTableBase *groupby_hash_table,
-      int index) const override {
+      std::size_t index) const override {
     LOG(FATAL) << "AggregationHandleDistinct does not support "
                << "aggregateOnDistinctifyHashTableForGroupBy().";
   }
 
   AggregationStateHashTableBase* createGroupByHashTable(
       const HashTableImplType hash_table_impl,
-      const std::vector<const Type*> &group_by_types,
+      const std::vector<const Type *> &group_by_types,
       const std::size_t estimated_num_groups,
       StorageManager *storage_manager) const override;
 

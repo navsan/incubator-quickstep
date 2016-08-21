@@ -43,7 +43,7 @@ namespace quickstep {
 class StorageManager;
 
 AggregationHandleSum::AggregationHandleSum(const Type &type)
-    : argument_type_(type), block_update(false) {
+    : argument_type_(type), block_update_(false) {
   // We sum Int as Long and Float as Double so that we have more headroom when
   // adding many values.
   TypeID type_precision_id;
@@ -66,11 +66,13 @@ AggregationHandleSum::AggregationHandleSum(const Type &type)
 
   // Make operators to do arithmetic:
   // Add operator for summing argument values.
-  fast_operator_.reset(BinaryOperationFactory::GetBinaryOperation(BinaryOperationID::kAdd)
-                       .makeUncheckedBinaryOperatorForTypes(sum_type, argument_type_));
+  fast_operator_.reset(
+      BinaryOperationFactory::GetBinaryOperation(BinaryOperationID::kAdd)
+          .makeUncheckedBinaryOperatorForTypes(sum_type, argument_type_));
   // Add operator for merging states.
-  merge_operator_.reset(BinaryOperationFactory::GetBinaryOperation(BinaryOperationID::kAdd)
-                        .makeUncheckedBinaryOperatorForTypes(sum_type, sum_type));
+  merge_operator_.reset(
+      BinaryOperationFactory::GetBinaryOperation(BinaryOperationID::kAdd)
+          .makeUncheckedBinaryOperatorForTypes(sum_type, sum_type));
 
   // Result is nullable, because SUM() over 0 values (or all NULL values) is
   // NULL.
@@ -79,14 +81,11 @@ AggregationHandleSum::AggregationHandleSum(const Type &type)
 
 AggregationStateHashTableBase* AggregationHandleSum::createGroupByHashTable(
     const HashTableImplType hash_table_impl,
-    const std::vector<const Type*> &group_by_types,
+    const std::vector<const Type *> &group_by_types,
     const std::size_t estimated_num_groups,
     StorageManager *storage_manager) const {
   return AggregationStateHashTableFactory<AggregationStateSum>::CreateResizable(
-      hash_table_impl,
-      group_by_types,
-      estimated_num_groups,
-      storage_manager);
+      hash_table_impl, group_by_types, estimated_num_groups, storage_manager);
 }
 
 AggregationState* AggregationHandleSum::accumulateColumnVectors(
@@ -95,9 +94,7 @@ AggregationState* AggregationHandleSum::accumulateColumnVectors(
       << "Got wrong number of ColumnVectors for SUM: " << column_vectors.size();
   std::size_t num_tuples = 0;
   TypedValue cv_sum = fast_operator_->accumulateColumnVector(
-      blank_state_.sum_,
-      *column_vectors.front(),
-      &num_tuples);
+      blank_state_.sum_, *column_vectors.front(), &num_tuples);
   return new AggregationStateSum(std::move(cv_sum), num_tuples == 0);
 }
 
@@ -110,10 +107,7 @@ AggregationState* AggregationHandleSum::accumulateValueAccessor(
 
   std::size_t num_tuples = 0;
   TypedValue va_sum = fast_operator_->accumulateValueAccessor(
-      blank_state_.sum_,
-      accessor,
-      accessor_ids.front(),
-      &num_tuples);
+      blank_state_.sum_, accessor, accessor_ids.front(), &num_tuples);
   return new AggregationStateSum(std::move(va_sum), num_tuples == 0);
 }
 #endif
@@ -127,31 +121,37 @@ void AggregationHandleSum::aggregateValueAccessorIntoHashTable(
       << "Got wrong number of arguments for SUM: " << argument_ids.size();
 }
 
-void AggregationHandleSum::mergeStates(
-    const AggregationState &source,
-    AggregationState *destination) const {
-  const AggregationStateSum &sum_source = static_cast<const AggregationStateSum&>(source);
-  AggregationStateSum *sum_destination = static_cast<AggregationStateSum*>(destination);
+void AggregationHandleSum::mergeStates(const AggregationState &source,
+                                       AggregationState *destination) const {
+  const AggregationStateSum &sum_source =
+      static_cast<const AggregationStateSum &>(source);
+  AggregationStateSum *sum_destination =
+      static_cast<AggregationStateSum *>(destination);
 
   SpinMutexLock lock(sum_destination->mutex_);
-  sum_destination->sum_ = merge_operator_->applyToTypedValues(sum_destination->sum_,
-                                                              sum_source.sum_);
+  sum_destination->sum_ = merge_operator_->applyToTypedValues(
+      sum_destination->sum_, sum_source.sum_);
   sum_destination->null_ = sum_destination->null_ && sum_source.null_;
 }
 
-void AggregationHandleSum::mergeStatesFast(
-    const uint8_t *source,
-    uint8_t *destination) const {
-    const TypedValue *src_sum_ptr = reinterpret_cast<const TypedValue *>(source+blank_state_.sum_offset);
-    const bool *src_null_ptr = reinterpret_cast<const bool *>(source+blank_state_.null_offset);
-    TypedValue *dst_sum_ptr = reinterpret_cast<TypedValue *>(destination+blank_state_.sum_offset);
-    bool *dst_null_ptr = reinterpret_cast<bool *>(destination+blank_state_.null_offset);
-    *dst_sum_ptr = merge_operator_->applyToTypedValues(*dst_sum_ptr, *src_sum_ptr);
-    *dst_null_ptr = (*dst_null_ptr) && (*src_null_ptr);
+void AggregationHandleSum::mergeStatesFast(const std::uint8_t *source,
+                                           std::uint8_t *destination) const {
+  const TypedValue *src_sum_ptr =
+      reinterpret_cast<const TypedValue *>(source + blank_state_.sum_offset_);
+  const bool *src_null_ptr =
+      reinterpret_cast<const bool *>(source + blank_state_.null_offset_);
+  TypedValue *dst_sum_ptr =
+      reinterpret_cast<TypedValue *>(destination + blank_state_.sum_offset_);
+  bool *dst_null_ptr =
+      reinterpret_cast<bool *>(destination + blank_state_.null_offset_);
+  *dst_sum_ptr =
+      merge_operator_->applyToTypedValues(*dst_sum_ptr, *src_sum_ptr);
+  *dst_null_ptr = (*dst_null_ptr) && (*src_null_ptr);
 }
 
 TypedValue AggregationHandleSum::finalize(const AggregationState &state) const {
-  const AggregationStateSum &agg_state = static_cast<const AggregationStateSum&>(state);
+  const AggregationStateSum &agg_state =
+      static_cast<const AggregationStateSum &>(state);
   if (agg_state.null_) {
     // SUM() over no values is NULL.
     return result_type_->makeNullValue();
@@ -165,31 +165,26 @@ ColumnVector* AggregationHandleSum::finalizeHashTable(
     std::vector<std::vector<TypedValue>> *group_by_keys,
     int index) const {
   return finalizeHashTableHelperFast<AggregationHandleSum,
-                                 AggregationStateFastHashTable>(
-      *result_type_,
-      hash_table,
-      group_by_keys,
-      index);
+                                     AggregationStateFastHashTable>(
+      *result_type_, hash_table, group_by_keys, index);
 }
 
-AggregationState* AggregationHandleSum::aggregateOnDistinctifyHashTableForSingle(
+AggregationState*
+AggregationHandleSum::aggregateOnDistinctifyHashTableForSingle(
     const AggregationStateHashTableBase &distinctify_hash_table) const {
   return aggregateOnDistinctifyHashTableForSingleUnaryHelperFast<
       AggregationHandleSum,
-      AggregationStateSum>(
-          distinctify_hash_table);
+      AggregationStateSum>(distinctify_hash_table);
 }
 
 void AggregationHandleSum::aggregateOnDistinctifyHashTableForGroupBy(
     const AggregationStateHashTableBase &distinctify_hash_table,
     AggregationStateHashTableBase *aggregation_hash_table,
-    int index) const {
+    std::size_t index) const {
   aggregateOnDistinctifyHashTableForGroupByUnaryHelperFast<
       AggregationHandleSum,
       AggregationStateFastHashTable>(
-          distinctify_hash_table,
-          aggregation_hash_table,
-          index);
+      distinctify_hash_table, aggregation_hash_table, index);
 }
 
 }  // namespace quickstep

@@ -23,8 +23,8 @@
 #include <vector>
 
 #include "catalog/CatalogTypedefs.hpp"
-#include "storage/HashTable.hpp"
 #include "storage/FastHashTable.hpp"
+#include "storage/HashTable.hpp"
 #include "storage/HashTableFactory.hpp"
 
 namespace quickstep {
@@ -52,24 +52,19 @@ void AggregationConcreteHandle::insertValueAccessorIntoDistinctifyHashTable(
     AggregationStateHashTableBase *distinctify_hash_table) const {
   // If the key-value pair is already there, we don't need to update the value,
   // which should always be "true". I.e. the value is just a placeholder.
-  //  const auto noop_upserter = [](const auto &accessor, const bool *value) -> void {};
 
   AggregationStateFastHashTable *hash_table =
       static_cast<AggregationStateFastHashTable *>(distinctify_hash_table);
   if (key_ids.size() == 1) {
     std::vector<std::vector<attribute_id>> args;
     args.emplace_back(key_ids);
-    hash_table->upsertValueAccessorFast(args,
-                                    accessor,
-                                    key_ids[0],
-                                    true /* check_for_null_keys */);
+    hash_table->upsertValueAccessorFast(
+        args, accessor, key_ids[0], true /* check_for_null_keys */);
   } else {
     std::vector<std::vector<attribute_id>> empty_args;
     empty_args.resize(1);
-    hash_table->upsertValueAccessorCompositeKeyFast(empty_args,
-                                                    accessor,
-                                                    key_ids,
-                                                    true /* check_for_null_keys */);
+    hash_table->upsertValueAccessorCompositeKeyFast(
+        empty_args, accessor, key_ids, true /* check_for_null_keys */);
   }
 }
 
