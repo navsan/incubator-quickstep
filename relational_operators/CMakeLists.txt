@@ -44,7 +44,6 @@ add_library(quickstep_relationaloperators_DestroyAggregationStateOperator
             DestroyAggregationStateOperator.cpp 
             DestroyAggregationStateOperator.hpp)
 add_library(quickstep_relationaloperators_DeleteOperator DeleteOperator.cpp DeleteOperator.hpp)
-add_library(quickstep_relationaloperators_DestroyAggregationStateOperator DestroyAggregationStateOperator.cpp DestroyAggregationStateOperator.hpp)
 add_library(quickstep_relationaloperators_DestroyHashOperator DestroyHashOperator.cpp DestroyHashOperator.hpp)
 add_library(quickstep_relationaloperators_DropTableOperator DropTableOperator.cpp DropTableOperator.hpp)
 add_library(quickstep_relationaloperators_FinalizeAggregationOperator

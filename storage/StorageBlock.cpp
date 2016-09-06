@@ -1386,7 +1386,7 @@ void StorageBlock::aggregateGroupByPartitioned(
 
   // IDs of 'arguments' as attributes in the ValueAccessor we create below.
   std::vector<attribute_id> arg_ids;
-  std::vector<std::vector<attribute_id>> argument_ids;
+  std::vector<attribute_id> argument_ids;
 
   // IDs of GROUP BY key element(s) in the ValueAccessor we create below.
   std::vector<attribute_id> key_ids;
@@ -1440,9 +1440,11 @@ void StorageBlock::aggregateGroupByPartitioned(
     arg_ids.clear();
     for (const std::unique_ptr<const Scalar> &args : argument) {
       temp_result.addColumn(args->getAllValues(accessor.get(), &sub_blocks_ref));
-      arg_ids.push_back(attr_id++);
+      argument_ids.push_back(attr_id++);
     }
-    argument_ids.push_back(arg_ids);
+    if (argument.empty()) {
+      argument_ids.push_back(kInvalidAttributeID);
+    }
   }
 
   // Compute the partitions for the tuple formed by group by values.

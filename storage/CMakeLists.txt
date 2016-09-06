@@ -981,6 +981,7 @@ target_link_libraries(quickstep_storage_StorageBlock
                       quickstep_storage_IndexSubBlock
                       quickstep_storage_InsertDestinationInterface
                       quickstep_storage_PackedRowStoreTupleStorageSubBlock
+                      quickstep_storage_PartitionedHashTablePool
                       quickstep_storage_SMAIndexSubBlock
                       quickstep_storage_SplitRowStoreTupleStorageSubBlock
                       quickstep_storage_StorageBlockBase

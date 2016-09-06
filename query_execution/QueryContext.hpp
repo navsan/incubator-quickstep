@@ -195,17 +195,6 @@ class QueryContext {
   }
 
   /**
-   * @brief Destroy the given aggregation state.
-   *
-   * @param id The ID of the AggregationOperationState to destroy.
-   **/
-  inline void destroyAggregationState(const aggregation_state_id id) {
-    DCHECK_LT(id, aggregation_states_.size());
-    DCHECK(aggregation_states_[id]);
-    aggregation_states_[id].reset(nullptr);
-  }
-
-  /**
    * @brief Whether the given BloomFilter id is valid.
    *
    * @param id The BloomFilter id.

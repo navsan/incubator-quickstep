@@ -205,6 +205,9 @@ class AggregationOperationState {
     }
   }
 
+  static void mergeGroupByHashTables(AggregationStateHashTableBase *src,
+                                     AggregationStateHashTableBase *dst);
+
   int dflag;
 
  private:
