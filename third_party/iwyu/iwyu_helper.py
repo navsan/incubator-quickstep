@@ -154,7 +154,7 @@ def GetConfiguration():
 # Run IWYU for the header/source specified in `path' and the specified IWYU
 # configuration.
 def RunIWYU(path, config):
-    args = [IWYU_CMD]
+    args = [IWYU_CMD, '-ferror-limit=0']
     if config.has_key(CFG_MAPPINGS):
         args += list(itertools.chain.from_iterable(
             map(MappingArg, config[CFG_MAPPINGS])))
