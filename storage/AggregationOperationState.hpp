@@ -221,8 +221,8 @@ class AggregationOperationState {
   std::vector<std::unique_ptr<AggregationStateHashTableBase>>
       group_by_hashtables_;
 
-  // A vector of group by hash table pools, one for each group by clause.
-  std::vector<std::unique_ptr<HashTablePool>> group_by_hashtable_pools_;
+  // A vector of group by hash table pools.
+  std::unique_ptr<HashTablePool> group_by_hashtable_pool_;
 
   StorageManager *storage_manager_;
 

@@ -135,13 +135,16 @@ class AggregationHandleCount : public AggregationConcreteHandle {
     }
   }
 
-  inline void updateState(const std::vector<TypedValue> &arguments,
-                          std::uint8_t *byte_ptr) const override {
+  inline void updateStateUnary(const TypedValue &argument,
+                               std::uint8_t *byte_ptr) const override {
     if (!block_update_) {
-      if (arguments.size())
-        iterateUnaryInlFast(arguments.front(), byte_ptr);
-      else
-        iterateNullaryInlFast(byte_ptr);
+      iterateUnaryInlFast(argument, byte_ptr);
+    }
+  }
+
+  inline void updateStateNullary(std::uint8_t *byte_ptr) const override {
+    if (!block_update_) {
+      iterateNullaryInlFast(byte_ptr);
     }
   }
 

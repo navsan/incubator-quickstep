@@ -130,7 +130,7 @@ class AggregationHandle {
    *        A StorageBlob will be allocated to serve as the HashTable's
    *        in-memory storage.
    * @return A new HashTable instance with the appropriate state type for this
-   *         aggregate as the ValueT.
+   *         aggregate.
    **/
   virtual AggregationStateHashTableBase* createGroupByHashTable(
       const HashTableImplType hash_table_impl,
@@ -297,7 +297,7 @@ class AggregationHandle {
    * in-memory
    *        storage.
    * @return A new HashTable instance with the appropriate state type for this
-   *         aggregate as the ValueT.
+   *         aggregate.
    */
   virtual AggregationStateHashTableBase* createDistinctifyHashTable(
       const HashTableImplType hash_table_impl,
@@ -356,13 +356,63 @@ class AggregationHandle {
       AggregationStateHashTableBase *aggregation_hash_table,
       std::size_t index) const = 0;
 
+  /**
+   * @brief Get the number of bytes to store the aggregation handle's state.
+   **/
   virtual std::size_t getPayloadSize() const { return 1; }
-  virtual void updateState(const std::vector<TypedValue> &arguments,
-                           std::uint8_t *byte_ptr) const {}
+
+  /**
+   * @brief Update the aggregation state for nullary aggregation function e.g.
+   *        COUNT(*).
+   *
+   * @note This function should be overloaded by those aggregation function
+   *       which can perform nullary operations, e.g. COUNT.
+   *
+   * @param byte_ptr The pointer where the aggregation state is stored.
+   **/
+  virtual void updateStateNullary(std::uint8_t *byte_ptr) const {}
+
+  /**
+   * @brief Update the aggregation state for unary aggregation function e.g.
+   *        SUM(a).
+   *
+   * @param argument The argument which will be used to update the state of the
+   *        aggregation function.
+   * @param byte_ptr The pointer where the aggregation state is stored.
+   **/
+  virtual void updateStateUnary(const TypedValue &argument,
+                                std::uint8_t *byte_ptr) const {}
+
+  /**
+   * @brief Merge two aggregation states for this aggregation handle.
+   *
+   * @note This function should be used with the hash table specifically meant
+   *       for aggregations only.
+   *
+   * @param src A pointer to the source aggregation state.
+   * @param dst A pointer to the destination aggregation state.
+   **/
   virtual void mergeStatesFast(const std::uint8_t *src,
                                std::uint8_t *dst) const {}
+
+  /**
+   * @brief Initialize the payload (in the aggregation hash table) for the given
+   *        aggregation handle.
+   *
+   * @param byte_ptr The pointer to the aggregation state in the hash table.
+   **/
   virtual void initPayload(std::uint8_t *byte_ptr) const {}
+
+  /**
+   * @brief Inform the aggregation handle to block (prohibit) updates on the
+   *        aggregation state.
+   **/
   virtual void blockUpdate() {}
+
+  /**
+   * @brief Inform the aggregation handle to allow updates on the
+   *        aggregation state.
+   **/
   virtual void allowUpdate() {}
 
  protected:

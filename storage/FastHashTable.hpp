@@ -456,7 +456,7 @@ class FastHashTable : public HashTableBase<resizable,
    *         not be inserted).
    **/
   bool upsertValueAccessorFast(
-      const std::vector<std::vector<attribute_id>> &argument_ids,
+      const std::vector<attribute_id> &argument_ids,
       ValueAccessor *accessor,
       const attribute_id key_attr_id,
       const bool check_for_null_keys);
@@ -509,7 +509,7 @@ class FastHashTable : public HashTableBase<resizable,
    *         not be inserted).
    **/
   bool upsertValueAccessorCompositeKeyFast(
-      const std::vector<std::vector<attribute_id>> &argument,
+      const std::vector<attribute_id> &argument,
       ValueAccessor *accessor,
       const std::vector<attribute_id> &key_attr_ids,
       const bool check_for_null_keys) override;
@@ -1866,13 +1866,12 @@ bool FastHashTable<resizable,
                    force_key_copy,
                    allow_duplicate_keys>::
     upsertValueAccessorFast(
-        const std::vector<std::vector<attribute_id>> &argument_ids,
+        const std::vector<attribute_id> &argument_ids,
         ValueAccessor *accessor,
         const attribute_id key_attr_id,
         const bool check_for_null_keys) {
   DEBUG_ASSERT(!allow_duplicate_keys);
   std::size_t variable_size;
-  std::vector<TypedValue> local;
   return InvokeOnAnyValueAccessor(
       accessor,
       [&](auto *accessor) -> bool {  // NOLINT(build/c++11)
@@ -1898,13 +1897,14 @@ bool FastHashTable<resizable,
                 } else {
                   SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
                   for (unsigned int k = 0; k < num_handles_; ++k) {
-                    local.clear();
-                    if (argument_ids[k].size()) {
-                      local.emplace_back(
-                          accessor->getTypedValue(argument_ids[k].front()));
+                    if (argument_ids[k] != kInvalidAttributeID) {
+                      handles_[k]->updateStateUnary(
+                          accessor->getTypedValue(argument_ids[k]),
+                          value + payload_offsets_[k]);
+                    } else {
+                      handles_[k]->updateStateNullary(value +
+                                                      payload_offsets_[k]);
                     }
-                    handles_[k]->updateState(local,
-                                             value + payload_offsets_[k]);
                   }
                 }
               }
@@ -1929,12 +1929,14 @@ bool FastHashTable<resizable,
             } else {
               SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
               for (unsigned int k = 0; k < num_handles_; ++k) {
-                local.clear();
-                if (argument_ids[k].size()) {
-                  local.emplace_back(
-                      accessor->getTypedValue(argument_ids[k].front()));
+                if (argument_ids[k] != kInvalidAttributeID) {
+                  handles_[k]->updateStateUnary(
+                      accessor->getTypedValue(argument_ids[k]),
+                      value + payload_offsets_[k]);
+                } else {
+                  handles_[k]->updateStateNullary(value +
+                                                  payload_offsets_[k]);
                 }
-                handles_[k]->updateState(local, value + payload_offsets_[k]);
               }
             }
           }
@@ -1953,7 +1955,7 @@ bool FastHashTable<resizable,
                    force_key_copy,
                    allow_duplicate_keys>::
     upsertValueAccessorCompositeKeyFast(
-        const std::vector<std::vector<attribute_id>> &argument_ids,
+        const std::vector<attribute_id> &argument_ids,
         ValueAccessor *accessor,
         const std::vector<attribute_id> &key_attr_ids,
         const bool check_for_null_keys) {
@@ -1961,7 +1963,6 @@ bool FastHashTable<resizable,
   std::size_t variable_size;
   std::vector<TypedValue> key_vector;
   key_vector.resize(key_attr_ids.size());
-  std::vector<TypedValue> local;
   return InvokeOnAnyValueAccessor(
       accessor,
       [&](auto *accessor) -> bool {  // NOLINT(build/c++11)
@@ -1989,13 +1990,14 @@ bool FastHashTable<resizable,
                 } else {
                   SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
                   for (unsigned int k = 0; k < num_handles_; ++k) {
-                    local.clear();
-                    if (argument_ids[k].size()) {
-                      local.emplace_back(
-                          accessor->getTypedValue(argument_ids[k].front()));
+                    if (argument_ids[k] != kInvalidAttributeID) {
+                      handles_[k]->updateStateUnary(
+                          accessor->getTypedValue(argument_ids[k]),
+                          value + payload_offsets_[k]);
+                    } else {
+                      handles_[k]->updateStateNullary(value +
+                                                      payload_offsets_[k]);
                     }
-                    handles_[k]->updateState(local,
-                                             value + payload_offsets_[k]);
                   }
                 }
               }
@@ -2022,12 +2024,14 @@ bool FastHashTable<resizable,
             } else {
               SpinMutexLock lock(*(reinterpret_cast<SpinMutex *>(value)));
               for (unsigned int k = 0; k < num_handles_; ++k) {
-                local.clear();
-                if (argument_ids[k].size()) {
-                  local.emplace_back(
-                      accessor->getTypedValue(argument_ids[k].front()));
+                if (argument_ids[k] != kInvalidAttributeID) {
+                  handles_[k]->updateStateUnary(
+                      accessor->getTypedValue(argument_ids[k]),
+                      value + payload_offsets_[k]);
+                } else {
+                  handles_[k]->updateStateNullary(value +
+                                                  payload_offsets_[k]);
                 }
-                handles_[k]->updateState(local, value + payload_offsets_[k]);
               }
             }
           }

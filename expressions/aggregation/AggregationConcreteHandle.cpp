@@ -56,13 +56,10 @@ void AggregationConcreteHandle::insertValueAccessorIntoDistinctifyHashTable(
   AggregationStateFastHashTable *hash_table =
       static_cast<AggregationStateFastHashTable *>(distinctify_hash_table);
   if (key_ids.size() == 1) {
-    std::vector<std::vector<attribute_id>> args;
-    args.emplace_back(key_ids);
     hash_table->upsertValueAccessorFast(
-        args, accessor, key_ids[0], true /* check_for_null_keys */);
+        key_ids, accessor, key_ids[0], true /* check_for_null_keys */);
   } else {
-    std::vector<std::vector<attribute_id>> empty_args;
-    empty_args.resize(1);
+    std::vector<attribute_id> empty_args {kInvalidAttributeID};
     hash_table->upsertValueAccessorCompositeKeyFast(
         empty_args, accessor, key_ids, true /* check_for_null_keys */);
   }

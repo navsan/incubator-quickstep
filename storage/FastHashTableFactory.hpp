@@ -90,30 +90,6 @@ class FastHashTableFactory {
             serializable,
             force_key_copy,
             allow_duplicate_keys>(key_types, num_entries, payload_sizes, handles, storage_manager);
-      case HashTableImplType::kLinearOpenAddressing:
-/*        return new LinearOpenAddressingHashTable<
-            ValueT,
-            resizable,
-            serializable,
-            force_key_copy,
-            allow_duplicate_keys>(key_types, num_entries, storage_manager);*/
-        return new FastSeparateChainingHashTable<
-            resizable,
-            serializable,
-            force_key_copy,
-            allow_duplicate_keys>(key_types, num_entries, payload_sizes, handles, storage_manager);
-      case HashTableImplType::kSimpleScalarSeparateChaining:
-        return new FastSeparateChainingHashTable<
-            resizable,
-            serializable,
-            force_key_copy,
-            allow_duplicate_keys>(key_types, num_entries, payload_sizes, handles, storage_manager);
-/*        return new SimpleScalarSeparateChainingHashTable<
-            ValueT,
-            resizable,
-            serializable,
-            force_key_copy,
-            allow_duplicate_keys>(key_types, num_entries, storage_manager);*/
       default: {
         LOG(FATAL) << "Unrecognized HashTableImplType in HashTableFactory::createResizable()\n";
       }
@@ -167,28 +143,6 @@ class FastHashTableFactory {
                                   hash_table_memory_size,
                                   new_hash_table,
                                   hash_table_memory_zeroed);
-      case HashTableImplType::kLinearOpenAddressing:
-/*        return new LinearOpenAddressingHashTable<
-            ValueT,
-            resizable,
-            serializable,
-            force_key_copy,
-            allow_duplicate_keys>(key_types,
-                                  hash_table_memory,
-                                  hash_table_memory_size,
-                                  new_hash_table,
-                                  hash_table_memory_zeroed);*/
-      case HashTableImplType::kSimpleScalarSeparateChaining:
-/*        return new SimpleScalarSeparateChainingHashTable<
-            ValueT,
-            resizable,
-            serializable,
-            force_key_copy,
-            allow_duplicate_keys>(key_types,
-                                  hash_table_memory,
-                                  hash_table_memory_size,
-                                  new_hash_table,
-                                  hash_table_memory_zeroed);*/
       default: {
         LOG(FATAL) << "Unrecognized HashTableImplType\n";
       }
