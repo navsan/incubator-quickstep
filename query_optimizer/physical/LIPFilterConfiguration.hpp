@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "query_optimizer/expressions/AttributeReference.hpp"
-#include "utility/LIPFilter.hpp"
+#include "utility/lip_filter/LIPFilter.hpp"
 #include "utility/Macros.hpp"
 
 #include "glog/logging.h"
@@ -42,7 +42,7 @@ namespace physical {
 class Physical;
 typedef std::shared_ptr<const Physical> PhysicalPtr;
 
-struct LIPFilterBuildInfo{
+struct LIPFilterBuildInfo {
   LIPFilterBuildInfo(const expressions::AttributeReferencePtr &build_attribute_in,
                      const std::size_t filter_size_in,
                      const LIPFilterType &filter_type_in)
@@ -64,7 +64,6 @@ struct LIPFilterProbeInfo {
         builder(builder_in) {
   }
   expressions::AttributeReferencePtr probe_attribute;
-  PhysicalPtr target;
   expressions::AttributeReferencePtr build_attribute;
   PhysicalPtr builder;
 };
@@ -82,7 +81,7 @@ class LIPFilterConfiguration {
                     const PhysicalPtr &builder,
                     const std::size_t filter_size,
                     const LIPFilterType &filter_type) {
-    build_info_[builder].emplace_back(
+    build_info_map_[builder].emplace_back(
         build_attribute, filter_size, filter_type);
   }
 
@@ -90,21 +89,21 @@ class LIPFilterConfiguration {
                     const PhysicalPtr &prober,
                     const expressions::AttributeReferencePtr &build_attribute,
                     const PhysicalPtr &builder) {
-    probe_info_[prober].emplace_back(
+    probe_info_map_[prober].emplace_back(
         probe_attribute, build_attribute, builder);
   }
 
-  const std::map<PhysicalPtr, std::vector<LIPFilterBuildInfo>>& getBuildInfo() const {
-    return build_info_;
+  const std::map<PhysicalPtr, std::vector<LIPFilterBuildInfo>>& getBuildInfoMap() const {
+    return build_info_map_;
   }
 
-  const std::map<PhysicalPtr, std::vector<LIPFilterProbeInfo>>& getProbeInfo() const {
-    return probe_info_;
+  const std::map<PhysicalPtr, std::vector<LIPFilterProbeInfo>>& getProbeInfoMap() const {
+    return probe_info_map_;
   }
 
  private:
-  std::map<PhysicalPtr, std::vector<LIPFilterBuildInfo>> build_info_;
-  std::map<PhysicalPtr, std::vector<LIPFilterProbeInfo>> probe_info_;
+  std::map<PhysicalPtr, std::vector<LIPFilterBuildInfo>> build_info_map_;
+  std::map<PhysicalPtr, std::vector<LIPFilterProbeInfo>> probe_info_map_;
 
   DISALLOW_COPY_AND_ASSIGN(LIPFilterConfiguration);
 };

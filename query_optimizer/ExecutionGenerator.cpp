@@ -54,6 +54,7 @@
 #include "expressions/window_aggregation/WindowAggregateFunction.pb.h"
 #include "query_execution/QueryContext.hpp"
 #include "query_execution/QueryContext.pb.h"
+#include "query_optimizer/LIPFilterGenerator.hpp"
 #include "query_optimizer/OptimizerContext.hpp"
 #include "query_optimizer/QueryHandle.hpp"
 #include "query_optimizer/QueryPlan.hpp"
@@ -164,6 +165,8 @@ void ExecutionGenerator::generatePlan(const P::PhysicalPtr &physical_plan) {
 
   cost_model_.reset(
       new cost::StarSchemaSimpleCostModel(top_level_physical_plan_->shared_subplans()));
+  lip_filter_generator_.reset(
+      new LIPFilterGenerator(top_level_physical_plan_->lip_filter_configuration()));
 
   const CatalogRelation *result_relation = nullptr;
 
@@ -172,6 +175,8 @@ void ExecutionGenerator::generatePlan(const P::PhysicalPtr &physical_plan) {
       generatePlanInternal(shared_subplan);
     }
     generatePlanInternal(top_level_physical_plan_->plan());
+
+    lip_filter_generator_->deployLIPFilters(execution_plan_, query_context_proto_);
 
     // Set the query result relation if the input plan exists in physical_to_execution_map_,
     // which indicates the plan is the result of a SELECT query.
@@ -228,6 +233,8 @@ void ExecutionGenerator::generatePlanInternal(
   for (const P::PhysicalPtr &child : physical_plan->children()) {
     generatePlanInternal(child);
   }
+
+  lip_filter_generator_->registerAttributeMap(physical_plan, attribute_substitution_map_);
 
   switch (physical_plan->getPhysicalType()) {
     case P::PhysicalType::kAggregate:
@@ -560,6 +567,8 @@ void ExecutionGenerator::convertSelection(
       std::forward_as_tuple(select_index,
                             output_relation));
   temporary_relation_info_vec_.emplace_back(select_index, output_relation);
+
+  lip_filter_generator_->addSelectionInfo(physical_selection, select_index);
 }
 
 void ExecutionGenerator::convertSharedSubplanReference(const physical::SharedSubplanReferencePtr &physical_plan) {
@@ -819,6 +828,10 @@ void ExecutionGenerator::convertHashJoin(const P::HashJoinPtr &physical_plan) {
       std::forward_as_tuple(join_operator_index,
                             output_relation));
   temporary_relation_info_vec_.emplace_back(join_operator_index, output_relation);
+
+  lip_filter_generator_->addHashJoinInfo(physical_plan,
+                                         build_operator_index,
+                                         join_operator_index);
 }
 
 void ExecutionGenerator::convertNestedLoopsJoin(
@@ -1446,6 +1459,10 @@ void ExecutionGenerator::convertAggregate(
   execution_plan_->addDirectDependency(destroy_aggregation_state_operator_index,
                                        finalize_aggregation_operator_index,
                                        true);
+
+  lip_filter_generator_->addAggregateInfo(physical_plan,
+                                          aggregation_operator_index,
+                                          aggr_state_index);
 }
 
 void ExecutionGenerator::convertSort(const P::SortPtr &physical_sort) {

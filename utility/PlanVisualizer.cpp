@@ -168,7 +168,7 @@ void PlanVisualizer::visit(const P::PhysicalPtr &input) {
   }
 
   if (lip_filter_conf_ != nullptr) {
-    const auto &build_filters = lip_filter_conf_->getBuildInfo();
+    const auto &build_filters = lip_filter_conf_->getBuildInfoMap();
     const auto build_it = build_filters.find(input);
     if (build_it != build_filters.end()) {
       for (const auto &build_info : build_it->second) {
@@ -176,7 +176,7 @@ void PlanVisualizer::visit(const P::PhysicalPtr &input) {
             std::string("[LIP build] ") + build_info.build_attribute->attribute_alias());
       }
     }
-    const auto &probe_filters = lip_filter_conf_->getProbeInfo();
+    const auto &probe_filters = lip_filter_conf_->getProbeInfoMap();
     const auto probe_it = probe_filters.find(input);
     if (probe_it != probe_filters.end()) {
       for (const auto &probe_info : probe_it->second) {

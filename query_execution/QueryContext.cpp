@@ -39,7 +39,7 @@
 #include "storage/InsertDestination.pb.h"
 #include "types/TypedValue.hpp"
 #include "types/containers/Tuple.hpp"
-#include "utility/BloomFilter.hpp"
+#include "utility/lip_filter/LIPFilter.hpp"
 #include "utility/SortConfiguration.hpp"
 
 #include "glog/logging.h"
@@ -68,10 +68,6 @@ QueryContext::QueryContext(const serialization::QueryContext &proto,
                                                         storage_manager));
   }
 
-  for (int i = 0; i < proto.bloom_filters_size(); ++i) {
-    bloom_filters_.emplace_back(new BloomFilter(proto.bloom_filters(i)));
-  }
-
   for (int i = 0; i < proto.generator_functions_size(); ++i) {
     const GeneratorFunctionHandle *func_handle =
         GeneratorFunctionFactory::Instance().reconstructFromProto(proto.generator_functions(i));
@@ -83,8 +79,7 @@ QueryContext::QueryContext(const serialization::QueryContext &proto,
   for (int i = 0; i < proto.join_hash_tables_size(); ++i) {
     join_hash_tables_.emplace_back(
         JoinHashTableFactory::CreateResizableFromProto(proto.join_hash_tables(i),
-                                                       storage_manager,
-                                                       bloom_filters_));
+                                                       storage_manager));
   }
 
   for (int i = 0; i < proto.insert_destinations_size(); ++i) {
@@ -153,12 +148,6 @@ bool QueryContext::ProtoIsValid(const serialization::QueryContext &proto,
                                 const CatalogDatabaseLite &database) {
   for (int i = 0; i < proto.aggregation_states_size(); ++i) {
     if (!AggregationOperationState::ProtoIsValid(proto.aggregation_states(i), database)) {
-      return false;
-    }
-  }
-
-  for (int i = 0; i < proto.bloom_filters_size(); ++i) {
-    if (!BloomFilter::ProtoIsValid(proto.bloom_filters(i))) {
       return false;
     }
   }

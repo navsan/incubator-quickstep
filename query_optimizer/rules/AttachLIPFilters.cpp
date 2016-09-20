@@ -39,7 +39,7 @@
 #include "query_optimizer/physical/Physical.hpp"
 #include "query_optimizer/physical/PhysicalType.hpp"
 #include "query_optimizer/physical/TopLevelPlan.hpp"
-#include "utility/LIPFilter.hpp"
+#include "utility/lip_filter/LIPFilter.hpp"
 
 #include "glog/logging.h"
 
@@ -71,8 +71,8 @@ P::PhysicalPtr AttachLIPFilters::apply(const P::PhysicalPtr &input) {
 //  }
 
   P::PhysicalPtr output;
-  if (!lip_filter_configuration_->getBuildInfo().empty() ||
-      !lip_filter_configuration_->getProbeInfo().empty()) {
+  if (!lip_filter_configuration_->getBuildInfoMap().empty() ||
+      !lip_filter_configuration_->getProbeInfoMap().empty()) {
     output = top_level_plan->copyWithLIPFilterConfiguration(
         P::LIPFilterConfigurationPtr(lip_filter_configuration_.release()));
   } else {
