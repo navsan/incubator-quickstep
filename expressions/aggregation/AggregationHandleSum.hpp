@@ -153,6 +153,15 @@ class AggregationHandleSum : public AggregationConcreteHandle {
     *null_ptr = true;
   }
 
+  void destroyPayload(std::uint8_t *byte_ptr) const override {
+    TypedValue *sum_ptr =
+        reinterpret_cast<TypedValue *>(byte_ptr + blank_state_.sum_offset_);
+    if (sum_ptr != nullptr) {
+      DCHECK(!sum_ptr->ownsOutOfLineData());
+      sum_ptr->~TypedValue();
+    }
+  }
+
   AggregationState* accumulateColumnVectors(
       const std::vector<std::unique_ptr<ColumnVector>> &column_vectors)
       const override;

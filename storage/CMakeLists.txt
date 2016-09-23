@@ -662,6 +662,7 @@ target_link_libraries(quickstep_storage_FastHashTableFactory
                       quickstep_utility_BloomFilter
                       quickstep_utility_Macros)
 target_link_libraries(quickstep_storage_FastSeparateChainingHashTable
+                      quickstep_expressions_aggregation_AggregationHandle
                       quickstep_storage_FastHashTable
                       quickstep_storage_HashTable
                       quickstep_storage_HashTableBase
