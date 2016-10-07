@@ -36,7 +36,7 @@
 #include "storage/WindowAggregationOperationState.hpp"
 #include "types/containers/Tuple.hpp"
 #include "utility/lip_filter/LIPFilter.hpp"
-#include "utility/lip_filter/LIPFilterDeploymentInfo.hpp"
+#include "utility/lip_filter/LIPFilterDeployment.hpp"
 #include "utility/Macros.hpp"
 #include "utility/SortConfiguration.hpp"
 
@@ -93,7 +93,8 @@ class QueryContext {
   /**
    * @brief A unique identifier for a LIPFilterDeploymentInfo per query.
    **/
-  typedef std::uint32_t lip_filter_deployment_info_id;
+  typedef std::uint32_t lip_deployment_id;
+  static constexpr lip_deployment_id kInvalidILIPDeploymentId = static_cast<lip_deployment_id>(-1);
 
   /**
    * @brief A unique identifier for a Predicate per query.
@@ -345,22 +346,22 @@ class QueryContext {
    *
    * @return True if valid, otherwise false.
    **/
-  bool isValidLIPFilterDeploymentInfoId(const lip_filter_deployment_info_id id) const {
-    return id < lip_filter_deployment_infos_.size();
+  bool isValidLIPDeploymentId(const lip_deployment_id id) const {
+    return id < lip_deployments_.size();
   }
 
   /**
-   * @brief Get a constant pointer to the LIPFilterDeploymentInfo.
+   * @brief Get a constant pointer to the LIPFilterDeployment.
    *
-   * @param id The LIPFilterDeploymentInfo id.
+   * @param id The LIPFilterDeployment id.
    *
-   * @return The constant pointer to LIPFilterDeploymentInfo that is
+   * @return The constant pointer to LIPFilterDeployment that is
    *         already created in the constructor.
    **/
-  inline const LIPFilterDeploymentInfo* getLIPFilterDeploymentInfo(
-      const lip_filter_deployment_info_id id) const {
-    DCHECK_LT(id, lip_filter_deployment_infos_.size());
-    return lip_filter_deployment_infos_[id].get();
+  inline const LIPFilterDeployment* getLIPDeployment(
+      const lip_deployment_id id) const {
+    DCHECK_LT(id, lip_deployments_.size());
+    return lip_deployments_[id].get();
   }
 
   /**
@@ -368,9 +369,9 @@ class QueryContext {
    *
    * @param id The id of the LIPFilterDeploymentInfo to destroy.
    **/
-  inline void destroyLIPFilterDeploymentInfo(const lip_filter_deployment_info_id id) {
-    DCHECK_LT(id, lip_filter_deployment_infos_.size());
-    lip_filter_deployment_infos_[id].reset();
+  inline void destroyLIPDeployment(const lip_deployment_id id) {
+    DCHECK_LT(id, lip_deployments_.size());
+    lip_deployments_[id].reset();
   }
 
   /**
@@ -552,7 +553,7 @@ class QueryContext {
   std::vector<std::unique_ptr<InsertDestination>> insert_destinations_;
   std::vector<std::unique_ptr<JoinHashTable>> join_hash_tables_;
   std::vector<std::unique_ptr<LIPFilter>> lip_filters_;
-  std::vector<std::unique_ptr<LIPFilterDeploymentInfo>> lip_filter_deployment_infos_;
+  std::vector<std::unique_ptr<LIPFilterDeployment>> lip_deployments_;
   std::vector<std::unique_ptr<const Predicate>> predicates_;
   std::vector<std::vector<std::unique_ptr<const Scalar>>> scalar_groups_;
   std::vector<std::unique_ptr<const SortConfiguration>> sort_configs_;

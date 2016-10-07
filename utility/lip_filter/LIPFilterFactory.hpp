@@ -23,10 +23,11 @@
 #include <vector>
 
 #include "utility/Macros.hpp"
-
-#include "glog/logging.h"
+#include "utility/lip_filter/LIPFilter.pb.h"
 
 namespace quickstep {
+
+class LIPFilter;
 
 /** \addtogroup Utility
  *  @{
@@ -34,6 +35,9 @@ namespace quickstep {
 
 class LIPFilterFactory {
  public:
+  static LIPFilter* ReconstructFromProto(const serialization::LIPFilter &proto);
+
+  static bool ProtoIsValid(const serialization::LIPFilter &proto);
 
  private:
 

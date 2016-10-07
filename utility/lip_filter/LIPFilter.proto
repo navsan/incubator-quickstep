@@ -36,7 +36,8 @@ message LIPFilter {
 message SingleIdentityHashFilter {
   extend LIPFilter {
     // All required
-    optional uint64 num_bits = 16;
+    optional uint64 filter_cardinality = 16;
+    optional uint64 attribute_size = 17;
   }
 }
 
@@ -45,9 +46,13 @@ enum LIPFilterActionType {
   PROBE = 2;
 }
 
-message LIPFilterDeploymentInfo {
+message LIPFilterDeployment {
+  message Entry {
+    required uint32 lip_filter_id = 1;
+    required int32 attribute_id = 2;
+    required Type attribute_type = 3;
+  }
+
   required LIPFilterActionType action_type = 1;
-  required uint32 lip_filter_id = 2;
-  required int32 attribute_id = 3;
-  required Type attribute_type = 4;
+  repeated Entry entries = 2;
 }

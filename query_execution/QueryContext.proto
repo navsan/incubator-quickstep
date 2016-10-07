@@ -50,7 +50,7 @@ message QueryContext {
   repeated HashTable join_hash_tables = 3;
   repeated InsertDestination insert_destinations = 4;
   repeated LIPFilter lip_filters = 5;
-  repeated LIPFilterDeploymentInfo lip_filter_deployment_infos = 6;
+  repeated LIPFilterDeployment lip_filter_deployments = 6;
   repeated Predicate predicates = 7;
   repeated ScalarGroup scalar_groups = 8;
   repeated SortConfiguration sort_configs = 9;

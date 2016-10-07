@@ -1461,8 +1461,7 @@ void ExecutionGenerator::convertAggregate(
                                        true);
 
   lip_filter_generator_->addAggregateInfo(physical_plan,
-                                          aggregation_operator_index,
-                                          aggr_state_index);
+                                          aggregation_operator_index);
 }
 
 void ExecutionGenerator::convertSort(const P::SortPtr &physical_sort) {

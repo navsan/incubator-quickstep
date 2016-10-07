@@ -20,13 +20,19 @@
 #ifndef QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_HPP_
 #define QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_HPP_
 
+#include <cstddef>
 #include <vector>
 
+#include "catalog/CatalogTypedefs.hpp"
+#include "storage/StorageBlockInfo.hpp"
 #include "utility/Macros.hpp"
 
 #include "glog/logging.h"
 
 namespace quickstep {
+
+class Type;
+class ValueAccessor;
 
 /** \addtogroup Utility
  *  @{
@@ -42,6 +48,21 @@ class LIPFilter {
  public:
   LIPFilterType getType() const {
     return type_;
+  }
+
+  virtual void insertValueAccessor(ValueAccessor *accessor,
+                                   const attribute_id attr_id,
+                                   const Type *attr_type) = 0;
+
+  virtual std::size_t filterBatch(ValueAccessor *accessor,
+                                  const attribute_id attr_id,
+                                  const bool is_attr_nullable,
+                                  std::vector<tuple_id> *batch,
+                                  const std::size_t batch_size) const = 0;
+
+ protected:
+  LIPFilter(const LIPFilterType &type)
+      : type_(type) {
   }
 
  private:

@@ -17,16 +17,21 @@
  * under the License.
  **/
 
-#ifndef QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_DEPLOYMENT_INFO_HPP_
-#define QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_DEPLOYMENT_INFO_HPP_
+#ifndef QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_DEPLOYMENT_HPP_
+#define QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_DEPLOYMENT_HPP_
 
 #include <vector>
 
 #include "catalog/CatalogTypedefs.hpp"
 #include "utility/Macros.hpp"
 #include "utility/lip_filter/LIPFilter.hpp"
+#include "utility/lip_filter/LIPFilter.pb.h"
 
 namespace quickstep {
+
+class LIPFilterBuilder;
+class LIPFilterAdaptiveProber;
+class Type;
 
 /** \addtogroup Utility
  *  @{
@@ -37,33 +42,30 @@ enum class LIPFilterActionType {
   kProbe
 };
 
-class LIPFilterDeploymentInfo {
+class LIPFilterDeployment {
  public:
-  const LIPFilterActionType getActionType() const {
+  LIPFilterDeployment(const serialization::LIPFilterDeployment &proto,
+                      const std::vector<std::unique_ptr<LIPFilter>> &lip_filters);
+
+  static bool ProtoIsValid(const serialization::LIPFilterDeployment &proto);
+
+  LIPFilterActionType getActionType() const {
     return action_type_;
   }
 
-  const std::vector<LIPFilter*>& lip_filters() const {
-    return lip_filters_;
-  }
+  LIPFilterBuilder* createLIPFilterBuilder() const;
 
-  const std::vector<attribute_id>& attr_ids() const {
-    return attr_ids_;
-  }
-
-  const std::vector<const Type*>& attr_types() const {
-    return attr_types_;
-  }
+  LIPFilterAdaptiveProber* createLIPFilterAdaptiveProber() const;
 
  private:
   LIPFilterActionType action_type_;
-  std::vector<LIPFilter*> lip_filters_;
+  std::vector<LIPFilter *> lip_filters_;
   std::vector<attribute_id> attr_ids_;
-  std::vector<const Type*> attr_types_;
+  std::vector<const Type *> attr_types_;
 };
 
 /** @} */
 
 }  // namespace quickstep
 
-#endif  // QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_DEPLOYMENT_INFO_HPP_
+#endif  // QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_DEPLOYMENT_HPP_

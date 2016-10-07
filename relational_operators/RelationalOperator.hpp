@@ -245,6 +245,13 @@ class RelationalOperator {
     return op_index_;
   }
 
+  /**
+   * @brief TODO
+   */
+  void deployLIPFilter(const QueryContext::lip_deployment_id lip_deployment_index) {
+    lip_deployment_index_ = lip_deployment_index;
+  }
+
  protected:
   /**
    * @brief Constructor
@@ -264,6 +271,8 @@ class RelationalOperator {
   bool blocking_dependencies_met_;
   bool done_feeding_input_relation_;
   std::size_t op_index_;
+
+  QueryContext::lip_deployment_id lip_deployment_index_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(RelationalOperator);

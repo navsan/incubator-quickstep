@@ -23,10 +23,11 @@ QS_PROTOBUF_GENERATE_CPP(utility_lipfilter_LIPFilter_proto_srcs
 add_library(quickstep_utility_lipfilter_LIPFilter LIPFilter.cpp LIPFilter.hpp)
 add_library(quickstep_utility_lipfilter_LIPFilterAdaptiveProber ../../empty_src.cpp LIPFilterAdaptiveProber.hpp)
 add_library(quickstep_utility_lipfilter_LIPFilterBuilder ../../empty_src.cpp LIPFilterBuilder.hpp)
-add_library(quickstep_utility_lipfilter_LIPFilterDeploymentInfo ../../empty_src.cpp LIPFilterDeploymentInfo.hpp)
+add_library(quickstep_utility_lipfilter_LIPFilterDeployment LIPFilterDeployment.cpp LIPFilterDeployment.hpp)
 add_library(quickstep_utility_lipfilter_LIPFilterFactory LIPFilterFactory.cpp LIPFilterFactory.hpp)
 add_library(quickstep_utility_lipfilter_LIPFilter_proto
             ${utility_lipfilter_LIPFilter_proto_srcs})
+add_library(quickstep_utility_lipfilter_SingleIdentityHashFilter ../../empty_src.cpp SingleIdentityHashFilter.hpp)
 
 # Link dependencies:
 target_link_libraries(quickstep_utility_lipfilter_LIPFilter
@@ -37,13 +38,21 @@ target_link_libraries(quickstep_utility_lipfilter_LIPFilterAdaptiveProber
 target_link_libraries(quickstep_utility_lipfilter_LIPFilterBuilder
                       quickstep_catalog_CatalogTypedefs
                       quickstep_utility_Macros)
-target_link_libraries(quickstep_utility_lipfilter_LIPFilterDeploymentInfo
+target_link_libraries(quickstep_utility_lipfilter_LIPFilterDeployment
                       quickstep_catalog_CatalogTypedefs
+                      quickstep_types_TypeFactory
                       quickstep_utility_Macros
-                      quickstep_utility_lipfilter_LIPFilter)
+                      quickstep_utility_lipfilter_LIPFilter
+                      quickstep_utility_lipfilter_LIPFilter_proto)
 target_link_libraries(quickstep_utility_lipfilter_LIPFilterFactory
+                      quickstep_utility_lipfilter_LIPFilter
                       quickstep_utility_lipfilter_LIPFilter_proto
+                      quickstep_utility_lipfilter_SingleIdentityHashFilter
                       quickstep_utility_Macros)
 target_link_libraries(quickstep_utility_lipfilter_LIPFilter_proto
                       ${PROTOBUF_LIBRARY}
                       quickstep_types_Type_proto)
+target_link_libraries(quickstep_utility_lipfilter_SingleIdentityHashFilter
+                      quickstep_storage_StorageConstants
+                      quickstep_utility_lipfilter_LIPFilter
+                      quickstep_utility_Macros)

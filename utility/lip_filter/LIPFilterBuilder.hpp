@@ -20,29 +20,41 @@
 #ifndef QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_BUILDER_HPP_
 #define QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_BUILDER_HPP_
 
+#include <memory>
 #include <vector>
 
+#include "catalog/CatalogTypedefs.hpp"
+#include "types/Type.hpp"
 #include "utility/Macros.hpp"
 
-#include "catalog/CatalogTypedefs.hpp"
-
 namespace quickstep {
+
+class ValueAccessor;
 
 /** \addtogroup Utility
  *  @{
  */
 
+class LIPFilterBuilder;
+typedef std::shared_ptr<LIPFilterBuilder> LIPFilterBuilderPtr;
+
 class LIPFilterBuilder {
  public:
   LIPFilterBuilder(const std::vector<LIPFilter *> &lip_filters,
                    const std::vector<attribute_id> &attr_ids,
-                   const std::vector<std::size_t> &attr_sizes) {
+                   const std::vector<const Type *> &attr_types) {
     DCHECK_EQ(lip_filters.size(), attr_ids.size());
-    DCHECK_EQ(lip_filters.size(), attr_sizes.size());
+    DCHECK_EQ(lip_filters.size(), attr_types.size());
 
     build_entries_.reserve(lip_filters.size());
     for (std::size_t i = 0; i < lip_filters.size(); ++i) {
-      build_entries_.emplace_back(lip_filters[i], attr_ids[i], attr_sizes[i]);
+      build_entries_.emplace_back(lip_filters[i], attr_ids[i], attr_types[i]);
+    }
+  }
+
+  void insertValueAccessor(ValueAccessor *accessor) {
+    for (auto &entry : build_entries_) {
+      entry.lip_filter->insertValueAccessor(accessor, entry.attr_id, entry.attr_type);
     }
   }
 
@@ -50,14 +62,14 @@ class LIPFilterBuilder {
   struct BuildEntry {
     BuildEntry(LIPFilter *lip_filter_in,
                const attribute_id attr_id_in,
-               const std::size_t attr_size_in)
+               const Type *attr_type_in)
         : lip_filter(lip_filter_in),
           attr_id(attr_id_in),
-          attr_size(attr_size_in) {
+          attr_type(attr_type_in) {
     }
     LIPFilter *lip_filter;
     const attribute_id attr_id;
-    const std::size_t attr_size;
+    const Type *attr_type;
   };
 
   std::vector<BuildEntry> build_entries_;

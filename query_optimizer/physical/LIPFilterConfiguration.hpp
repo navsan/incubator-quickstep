@@ -44,14 +44,14 @@ typedef std::shared_ptr<const Physical> PhysicalPtr;
 
 struct LIPFilterBuildInfo {
   LIPFilterBuildInfo(const expressions::AttributeReferencePtr &build_attribute_in,
-                     const std::size_t filter_size_in,
+                     const std::size_t filter_cardinality_in,
                      const LIPFilterType &filter_type_in)
       : build_attribute(build_attribute_in),
-        filter_size(filter_size_in),
+        filter_cardinality(filter_cardinality_in),
         filter_type(filter_type_in) {
   }
   expressions::AttributeReferencePtr build_attribute;
-  std::size_t filter_size;
+  std::size_t filter_cardinality;
   LIPFilterType filter_type;
 };
 

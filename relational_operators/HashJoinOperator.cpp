@@ -48,6 +48,7 @@
 #include "types/TypedValue.hpp"
 #include "types/containers/ColumnVector.hpp"
 #include "types/containers/ColumnVectorsValueAccessor.hpp"
+#include "utility/lip_filter/LIPFilterAdaptiveProber.hpp"
 
 #include "gflags/gflags.h"
 #include "glog/logging.h"
@@ -180,6 +181,11 @@ bool HashJoinOperator::getAllNonOuterJoinWorkOrders(
   if (blocking_dependencies_met_) {
     DCHECK(query_context != nullptr);
 
+    const LIPFilterDeployment *lip_filter_deployment = nullptr;
+    if (lip_deployment_index_ != QueryContext::kInvalidILIPDeploymentId) {
+      lip_filter_deployment = query_context->getLIPDeployment(lip_deployment_index_);
+    }
+
     const Predicate *residual_predicate =
         query_context->getPredicate(residual_predicate_index_);
     const vector<unique_ptr<const Scalar>> &selection =
@@ -192,6 +198,10 @@ bool HashJoinOperator::getAllNonOuterJoinWorkOrders(
     if (probe_relation_is_stored_) {
       if (!started_) {
         for (const block_id probe_block_id : probe_relation_block_ids_) {
+          LIPFilterAdaptiveProber *lip_filter_adaptive_prober = nullptr;
+          if (lip_filter_deployment != nullptr) {
+            lip_filter_adaptive_prober = lip_filter_deployment->createLIPFilterAdaptiveProber();
+          }
           container->addNormalWorkOrder(
               new JoinWorkOrderClass(query_id_,
                                      build_relation_,
@@ -203,7 +213,8 @@ bool HashJoinOperator::getAllNonOuterJoinWorkOrders(
                                      selection,
                                      hash_table,
                                      output_destination,
-                                     storage_manager),
+                                     storage_manager,
+                                     lip_filter_adaptive_prober),
               op_index_);
         }
         started_ = true;
@@ -211,6 +222,10 @@ bool HashJoinOperator::getAllNonOuterJoinWorkOrders(
       return started_;
     } else {
       while (num_workorders_generated_ < probe_relation_block_ids_.size()) {
+        LIPFilterAdaptiveProber *lip_filter_adaptive_prober = nullptr;
+        if (lip_filter_deployment != nullptr) {
+          lip_filter_adaptive_prober = lip_filter_deployment->createLIPFilterAdaptiveProber();
+        }
         container->addNormalWorkOrder(
             new JoinWorkOrderClass(
                 query_id_,
@@ -223,7 +238,8 @@ bool HashJoinOperator::getAllNonOuterJoinWorkOrders(
                 selection,
                 hash_table,
                 output_destination,
-                storage_manager),
+                storage_manager,
+                lip_filter_adaptive_prober),
             op_index_);
         ++num_workorders_generated_;
       }  // end while
@@ -423,6 +439,17 @@ void HashInnerJoinWorkOrder::execute() {
   const TupleStorageSubBlock &probe_store = probe_block->getTupleStorageSubBlock();
 
   std::unique_ptr<ValueAccessor> probe_accessor(probe_store.createValueAccessor());
+
+  std::unique_ptr<TupleIdSequence> lip_filter_existence_map;
+  std::unique_ptr<ValueAccessor> base_accessor;
+  if (lip_filter_adaptive_prober_ != nullptr) {
+    base_accessor.reset(probe_accessor.release());
+    lip_filter_existence_map.reset(
+        lip_filter_adaptive_prober_->filterValueAccessor(base_accessor.get()));
+    probe_accessor.reset(
+        base_accessor->createSharedTupleIdSequenceAdapterVirtual(*lip_filter_existence_map));
+  }
+
   MapBasedJoinedTupleCollector collector;
   if (join_key_attributes_.size() == 1) {
     hash_table_.getAllFromValueAccessor(

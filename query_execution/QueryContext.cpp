@@ -40,6 +40,9 @@
 #include "types/TypedValue.hpp"
 #include "types/containers/Tuple.hpp"
 #include "utility/lip_filter/LIPFilter.hpp"
+#include "utility/lip_filter/LIPFilter.pb.h"
+#include "utility/lip_filter/LIPFilterDeployment.hpp"
+#include "utility/lip_filter/LIPFilterFactory.hpp"
 #include "utility/SortConfiguration.hpp"
 
 #include "glog/logging.h"
@@ -91,6 +94,18 @@ QueryContext::QueryContext(const serialization::QueryContext &proto,
         storage_manager,
         scheduler_client_id,
         bus));
+  }
+
+  for (int i = 0; i < proto.lip_filters_size(); ++i) {
+    lip_filters_.emplace_back(
+        std::unique_ptr<LIPFilter>(
+            LIPFilterFactory::ReconstructFromProto(proto.lip_filters(i))));
+  }
+
+  for (int i = 0; i < proto.lip_filter_deployments_size(); ++i) {
+    lip_deployments_.emplace_back(
+        std::make_unique<LIPFilterDeployment>(
+            proto.lip_filter_deployments(i), lip_filters_));
   }
 
   for (int i = 0; i < proto.predicates_size(); ++i) {
@@ -176,6 +191,18 @@ bool QueryContext::ProtoIsValid(const serialization::QueryContext &proto,
     if (!database.hasRelationWithId(rel_id) ||
         !InsertDestination::ProtoIsValid(insert_destination_proto,
                                          database.getRelationSchemaById(rel_id))) {
+      return false;
+    }
+  }
+
+  for (int i = 0; i < proto.lip_filters_size(); ++i) {
+    if (!LIPFilterFactory::ProtoIsValid(proto.lip_filters(i))) {
+      return false;
+    }
+  }
+
+  for (int i = 0; i < proto.lip_filter_deployments_size(); ++i) {
+    if (!LIPFilterDeployment::ProtoIsValid(proto.lip_filter_deployments(i))) {
       return false;
     }
   }

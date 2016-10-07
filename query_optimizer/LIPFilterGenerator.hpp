@@ -55,60 +55,44 @@ class LIPFilterGenerator {
       const std::unordered_map<expressions::ExprId, const CatalogAttribute *> &attribute_substitution_map);
 
   void addAggregateInfo(const physical::AggregatePtr &aggregate,
-                        const QueryPlan::DAGNodeIndex aggregate_operator_index,
-                        const QueryContext::aggregation_state_id aggregation_state_id) {
-    aggregate_infos_.emplace_back(aggregate, aggregate_operator_index, aggregation_state_id);
+                        const QueryPlan::DAGNodeIndex aggregate_operator_index) {
+    prober_infos_.emplace_back(aggregate, aggregate_operator_index);
   }
 
   void addHashJoinInfo(const physical::HashJoinPtr &hash_join,
                        const QueryPlan::DAGNodeIndex build_operator_index,
                        const QueryPlan::DAGNodeIndex join_operator_index) {
-    hash_join_infos_.emplace_back(hash_join, build_operator_index, join_operator_index);
+    builder_infos_.emplace_back(hash_join, build_operator_index);
+    prober_infos_.emplace_back(hash_join, join_operator_index);
   }
 
   void addSelectionInfo(const physical::SelectionPtr &selection,
                         const QueryPlan::DAGNodeIndex select_operator_index) {
-    selection_infos_.emplace_back(selection, select_operator_index);
+    prober_infos_.emplace_back(selection, select_operator_index);
   }
 
   void deployLIPFilters(QueryPlan *execution_plan,
                         serialization::QueryContext *query_context_proto) const;
 
  private:
-  struct AggregateInfo {
-    AggregateInfo(const physical::AggregatePtr &aggregate_in,
-                  const QueryPlan::DAGNodeIndex aggregate_operator_index_in,
-                  const QueryContext::aggregation_state_id aggregation_state_id_in)
-        : aggregate(aggregate_in),
-          aggregate_operator_index(aggregate_operator_index_in),
-          aggregation_state_id(aggregation_state_id_in) {
+  struct BuilderInfo {
+    BuilderInfo(const physical::PhysicalPtr &builder_node_in,
+                const QueryPlan::DAGNodeIndex builder_operator_index_in)
+        : builder_node(builder_node_in),
+          builder_operator_index(builder_operator_index_in) {
     }
-    const physical::AggregatePtr aggregate;
-    const QueryPlan::DAGNodeIndex aggregate_operator_index;
-    const QueryContext::aggregation_state_id aggregation_state_id;
+    const physical::PhysicalPtr builder_node;
+    const QueryPlan::DAGNodeIndex builder_operator_index;
   };
 
-  struct HashJoinInfo {
-    HashJoinInfo(const physical::HashJoinPtr &hash_join_in,
-                 const QueryPlan::DAGNodeIndex build_operator_index_in,
-                 const QueryPlan::DAGNodeIndex join_operator_index_in)
-        : hash_join(hash_join_in),
-          build_operator_index(build_operator_index_in),
-          join_operator_index(join_operator_index_in) {
+  struct ProberInfo {
+    ProberInfo(const physical::PhysicalPtr &prober_node_in,
+               const QueryPlan::DAGNodeIndex prober_operator_index_in)
+        : prober_node(prober_node_in),
+          prober_operator_index(prober_operator_index_in) {
     }
-    const physical::HashJoinPtr hash_join;
-    const QueryPlan::DAGNodeIndex build_operator_index;
-    const QueryPlan::DAGNodeIndex join_operator_index;
-  };
-
-  struct SelectionInfo {
-    SelectionInfo(const physical::SelectionPtr &selection_in,
-                  const QueryPlan::DAGNodeIndex select_operator_index_in)
-        : selection(selection_in),
-          select_operator_index(select_operator_index_in) {
-    }
-    const physical::SelectionPtr selection;
-    const QueryPlan::DAGNodeIndex select_operator_index;
+    const physical::PhysicalPtr prober_node;
+    const QueryPlan::DAGNodeIndex prober_operator_index;
   };
 
   typedef std::map<std::pair<expressions::ExprId, physical::PhysicalPtr>,
@@ -121,13 +105,17 @@ class LIPFilterGenerator {
                              const std::vector<physical::LIPFilterBuildInfo> &build_info_vec,
                              LIPFilterBuilderMap *lip_filter_builder_map) const;
 
-  void deployProberInteral();
+  void deployProberInteral(QueryPlan *execution_plan,
+                           serialization::QueryContext *query_context_proto,
+                           const physical::PhysicalPtr &prober_node,
+                           const QueryPlan::DAGNodeIndex prober_operator_index,
+                           const std::vector<physical::LIPFilterProbeInfo> &probe_info_vec,
+                           const LIPFilterBuilderMap &lip_filter_builder_map) const;
 
   const physical::LIPFilterConfigurationPtr lip_filter_configuration_;
   std::map<physical::PhysicalPtr, std::map<expressions::ExprId, const CatalogAttribute *>> attribute_map_;
-  std::vector<AggregateInfo> aggregate_infos_;
-  std::vector<HashJoinInfo> hash_join_infos_;
-  std::vector<SelectionInfo> selection_infos_;
+  std::vector<BuilderInfo> builder_infos_;
+  std::vector<ProberInfo> prober_infos_;
 };
 
 
