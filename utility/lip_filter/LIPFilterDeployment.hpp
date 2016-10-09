@@ -20,6 +20,7 @@
 #ifndef QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_DEPLOYMENT_HPP_
 #define QUICKSTEP_UTILITY_LIP_FILTER_LIP_FILTER_DEPLOYMENT_HPP_
 
+#include <memory>
 #include <vector>
 
 #include "catalog/CatalogTypedefs.hpp"

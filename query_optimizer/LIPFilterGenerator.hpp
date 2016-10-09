@@ -48,6 +48,7 @@ class LIPFilterGenerator {
  public:
   LIPFilterGenerator(const physical::LIPFilterConfigurationPtr &lip_filter_configuration)
       : lip_filter_configuration_(lip_filter_configuration) {
+    // TODO: check not null
   }
 
   void registerAttributeMap(

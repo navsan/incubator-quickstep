@@ -172,6 +172,10 @@ void LIPFilterGenerator::deployProberInteral(
     lip_filter_entry_proto->mutable_attribute_type()->CopyFrom(
         target_attr->getType().getProto());
 
+    execution_plan->addDirectDependency(prober_operator_index,
+                                        builder_info.second,
+                                        true /* is_pipeline_breaker */);
+
     std::cerr << "Probe " << info.probe_attribute->toString()
               << " @" << prober_node << "\n";
   }

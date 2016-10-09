@@ -264,7 +264,8 @@ class RelationalOperator {
                               const bool blocking_dependencies_met = false)
       : query_id_(query_id),
         blocking_dependencies_met_(blocking_dependencies_met),
-        done_feeding_input_relation_(false) {}
+        done_feeding_input_relation_(false),
+        lip_deployment_index_(QueryContext::kInvalidILIPDeploymentId) {}
 
   const std::size_t query_id_;
 

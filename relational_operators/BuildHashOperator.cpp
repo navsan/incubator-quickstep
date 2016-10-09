@@ -161,6 +161,7 @@ void BuildHashWorkOrder::execute() {
 
   if (lip_filter_builder_ != nullptr) {
     lip_filter_builder_->insertValueAccessor(accessor.get());
+    accessor->beginIterationVirtual();
   }
 
   HashTablePutResult result;
