@@ -420,6 +420,7 @@ class ExecutionGenerator {
    * @brief The cost model to use for creating the execution plan.
    */
   std::unique_ptr<cost::CostModel> cost_model_;
+  std::unique_ptr<cost::CostModel> simple_cost_model_;
 
   physical::TopLevelPlanPtr top_level_physical_plan_;
 

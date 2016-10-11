@@ -58,6 +58,7 @@
 #include "query_optimizer/OptimizerContext.hpp"
 #include "query_optimizer/QueryHandle.hpp"
 #include "query_optimizer/QueryPlan.hpp"
+#include "query_optimizer/cost_model/SimpleCostModel.hpp"
 #include "query_optimizer/cost_model/StarSchemaSimpleCostModel.hpp"
 #include "query_optimizer/expressions/AggregateFunction.hpp"
 #include "query_optimizer/expressions/Alias.hpp"
@@ -166,8 +167,8 @@ void ExecutionGenerator::generatePlan(const P::PhysicalPtr &physical_plan) {
 
   cost_model_.reset(
       new cost::StarSchemaSimpleCostModel(top_level_physical_plan_->shared_subplans()));
-  lip_filter_generator_.reset(
-      new LIPFilterGenerator(top_level_physical_plan_->lip_filter_configuration()));
+  simple_cost_model_.reset(
+      new cost::SimpleCostModel(top_level_physical_plan_->shared_subplans()));
   const P::LIPFilterConfigurationPtr &lip_filter_configuration =
       top_level_physical_plan_->lip_filter_configuration();
   if (lip_filter_configuration != nullptr) {
@@ -618,7 +619,7 @@ void ExecutionGenerator::convertHashJoin(const P::HashJoinPtr &physical_plan) {
   const CatalogRelation *referenced_stored_probe_relation = nullptr;
   const CatalogRelation *referenced_stored_build_relation = nullptr;
 
-  std::size_t build_cardinality = cost_model_->estimateCardinality(build_physical);
+  std::size_t build_cardinality = simple_cost_model_->estimateCardinality(build_physical);
 
   bool any_probe_attributes_nullable = false;
   bool any_build_attributes_nullable = false;

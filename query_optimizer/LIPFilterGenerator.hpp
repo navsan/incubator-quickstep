@@ -33,6 +33,7 @@
 #include "query_optimizer/physical/Physical.hpp"
 #include "query_optimizer/physical/Selection.hpp"
 
+#include "glog/logging.h"
 
 namespace quickstep {
 
@@ -48,7 +49,7 @@ class LIPFilterGenerator {
  public:
   LIPFilterGenerator(const physical::LIPFilterConfigurationPtr &lip_filter_configuration)
       : lip_filter_configuration_(lip_filter_configuration) {
-    // TODO: check not null
+    DCHECK(lip_filter_configuration_ != nullptr);
   }
 
   void registerAttributeMap(

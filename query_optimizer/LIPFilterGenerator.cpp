@@ -139,7 +139,8 @@ void LIPFilterGenerator::deployBuilderInternal(
     lip_filter_entry_proto->mutable_attribute_type()->CopyFrom(attr_type.getProto());
 
     std::cerr << "Build " << info.build_attribute->toString()
-              << " @" << builder_node << "\n";
+              << " @" << builder_node
+              << " size = " << info.filter_cardinality << "\n";
   }
 
   RelationalOperator *relop =
