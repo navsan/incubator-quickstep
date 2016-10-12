@@ -83,8 +83,7 @@ class StarSchemaHashJoinOrderOptimization : public Rule<physical::Physical> {
           table(table_in),
           estimated_cardinality(estimated_cardinality_in),
           estimated_selectivity(estimated_selectivity_in),
-          estimated_num_output_attributes(estimated_num_output_attributes_in),
-          is_aggregation(is_aggregation_in) {
+          estimated_num_output_attributes(estimated_num_output_attributes_in) {
     }
 
     const std::size_t table_info_id;
@@ -92,22 +91,26 @@ class StarSchemaHashJoinOrderOptimization : public Rule<physical::Physical> {
     std::size_t estimated_cardinality;
     double estimated_selectivity;
     std::size_t estimated_num_output_attributes;
-    bool is_aggregation;
   };
 
   struct JoinPair {
     JoinPair(TableInfo *probe_in,
              TableInfo *build_in,
-             const bool build_side_unique_in)
+             const bool build_side_unique_in,
+             const std::size_t num_join_attributes_in)
         : probe(probe_in),
           build(build_in),
-          build_side_unique(build_side_unique_in) {
+          build_side_unique(build_side_unique_in),
+          num_join_attributes(num_join_attributes_in) {
     }
 
     inline bool isBetterThan(const JoinPair &rhs) const {
       const auto &lhs = *this;
 
-      std::cerr << "Check 1\n";
+//      std::cerr << "Check 1\n";
+//      std::cerr << lhs.build->estimated_num_output_attributes + lhs.probe->estimated_num_output_attributes
+//                << " vs "
+//                << rhs.build->estimated_num_output_attributes + rhs.probe->estimated_num_output_attributes << "\n";
       const bool lhs_has_large_output =
           lhs.build->estimated_num_output_attributes
               + lhs.probe->estimated_num_output_attributes > 5;
@@ -118,24 +121,19 @@ class StarSchemaHashJoinOrderOptimization : public Rule<physical::Physical> {
         return rhs_has_large_output;
       }
 
-      std::cerr << "Check 2\n";
+//      std::cerr << "Check 2\n";
       if (lhs.build_side_unique != rhs.build_side_unique) {
         return lhs.build_side_unique;
       }
 
-      std::cerr << "Check 3\n";
+//      std::cerr << "Check 3\n";
       const bool lhs_has_small_build = lhs.build->estimated_cardinality < 0x100;
       const bool rhs_has_small_build = rhs.build->estimated_cardinality < 0x100;
       if (lhs_has_small_build != rhs_has_small_build) {
         return lhs_has_small_build;
       }
 
-      std::cerr << "Check 4\n";
-      if (lhs.probe->is_aggregation != rhs.probe->is_aggregation) {
-        return lhs.probe->is_aggregation;
-      }
-
-      std::cerr << "Check 5\n";
+//      std::cerr << "Check 4\n";
       if (lhs.probe->estimated_cardinality != rhs.probe->estimated_cardinality) {
         return lhs.probe->estimated_cardinality < rhs.probe->estimated_cardinality;
       }
@@ -155,6 +153,7 @@ class StarSchemaHashJoinOrderOptimization : public Rule<physical::Physical> {
     TableInfo *probe;
     TableInfo *build;
     const bool build_side_unique;
+    const std::size_t num_join_attributes;
   };
 
   physical::PhysicalPtr applyInternal(const physical::PhysicalPtr &input,
@@ -164,6 +163,8 @@ class StarSchemaHashJoinOrderOptimization : public Rule<physical::Physical> {
       const JoinGroupInfo &join_group_info,
       const expressions::PredicatePtr &residual_predicate,
       const std::vector<expressions::NamedExpressionPtr> &project_expressions);
+
+  std::size_t getEstimatedNumGroups(const physical::PhysicalPtr &input);
 
   static std::size_t CountSharedAttributes(
       const std::unordered_set<expressions::ExprId> &attr_set1,

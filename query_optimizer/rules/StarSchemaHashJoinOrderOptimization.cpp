@@ -28,6 +28,7 @@
 #include "query_optimizer/expressions/AttributeReference.hpp"
 #include "query_optimizer/expressions/NamedExpression.hpp"
 #include "query_optimizer/expressions/PatternMatcher.hpp"
+#include "query_optimizer/physical/Aggregate.hpp"
 #include "query_optimizer/physical/HashJoin.hpp"
 #include "query_optimizer/physical/PatternMatcher.hpp"
 #include "query_optimizer/physical/Physical.hpp"
@@ -75,7 +76,7 @@ P::PhysicalPtr StarSchemaHashJoinOrderOptimization::applyInternal(const P::Physi
     JoinGroupInfo *join_group = nullptr;
     if (parent_join_group == nullptr || !is_valid_cascading_hash_join) {
       new_join_group.reset(new JoinGroupInfo());
-      for (const auto &attr : input->getReferencedAttributes()) {
+      for (const auto &attr : input->getOutputAttributes()) {
         new_join_group->referenced_attributes.emplace(attr->id());
       }
       join_group = new_join_group.get();
@@ -211,14 +212,14 @@ physical::PhysicalPtr StarSchemaHashJoinOrderOptimization::generatePlan(
         if (probe_table_info != build_table_info) {
           const std::size_t probe_table_id = probe_table_info->table_info_id;
           const std::size_t build_table_id = build_table_info->table_info_id;
-          bool has_join_attribute = false;
+          std::size_t num_join_attributes = 0;
           double build_side_uniqueness = 1.0;
           for (const auto &attr_group_pair : join_attribute_groups) {
             const auto &attr_group = attr_group_pair.second;
             auto probe_it = attr_group.find(probe_table_id);
             auto build_it = attr_group.find(build_table_id);
             if (probe_it != attr_group.end() && build_it != attr_group.end()) {
-              has_join_attribute = true;
+              ++num_join_attributes;
               build_side_uniqueness *= std::max(
                   1uL,
                   cost_model_->estimateNumDistinctValues(
@@ -227,27 +228,29 @@ physical::PhysicalPtr StarSchemaHashJoinOrderOptimization::generatePlan(
           }
           build_side_uniqueness /= build_table_info->estimated_cardinality;
 
-          if (has_join_attribute) {
+          if (num_join_attributes > 0) {
+//            std::cerr << "Unqueness = " << build_side_uniqueness << "\n";
             std::unique_ptr<JoinPair> new_join(
                 new JoinPair(probe_table_info,
                              build_table_info,
-                             build_side_uniqueness >= 0.9));
+                             build_side_uniqueness >= 0.9,
+                             num_join_attributes));
             if (best_join == nullptr || new_join->isBetterThan(*best_join)) {
-              if (best_join != nullptr) {
-                std::cerr << "(" << best_join->probe->estimated_selectivity
-                          << ", " << best_join->probe->estimated_cardinality << ")"
-                          << " -- "
-                          << "(" << best_join->build->estimated_selectivity
-                          << ", " << best_join->build->estimated_cardinality << ")"
-                          << "\n";
-                std::cerr << "REPLACED WITH\n";
-              }
-              std::cerr << "(" << new_join->probe->estimated_selectivity
-                        << ", " << new_join->probe->estimated_cardinality << ")"
-                        << " -- "
-                        << "(" << new_join->build->estimated_selectivity
-                        << ", " << new_join->build->estimated_cardinality << ")"
-                        << "\n****\n";
+//              if (best_join != nullptr) {
+//                std::cerr << "(" << best_join->probe->estimated_selectivity
+//                          << ", " << best_join->probe->estimated_cardinality << ")"
+//                          << " -- "
+//                          << "(" << best_join->build->estimated_selectivity
+//                          << ", " << best_join->build->estimated_cardinality << ")"
+//                          << "\n";
+//                std::cerr << "REPLACED WITH\n";
+//              }
+//              std::cerr << "(" << new_join->probe->estimated_selectivity
+//                        << ", " << new_join->probe->estimated_cardinality << ")"
+//                        << " -- "
+//                        << "(" << new_join->build->estimated_selectivity
+//                        << ", " << new_join->build->estimated_cardinality << ")"
+//                        << "\n****\n";
               best_join.reset(new_join.release());
             }
           }
@@ -261,11 +264,19 @@ physical::PhysicalPtr StarSchemaHashJoinOrderOptimization::generatePlan(
     TableInfo *selected_build_table_info = best_join->build;
 //    std::cerr << "card: " << selected_probe_table_info->estimated_cardinality << "\n";
 //    std::cerr << "card: " << selected_build_table_info->estimated_cardinality << "\n";
-    std::cerr << "--------\n\n";
-    if (!best_join->build_side_unique &&
+    const std::size_t probe_num_groups_as_agg =
+        getEstimatedNumGroups(selected_probe_table_info->table);
+    const std::size_t build_num_groups_as_agg =
+        getEstimatedNumGroups(selected_build_table_info->table);
+    if (build_num_groups_as_agg > 1000000 || probe_num_groups_as_agg > 1000000) {
+      if (build_num_groups_as_agg > probe_num_groups_as_agg) {
+        std::swap(selected_probe_table_info, selected_build_table_info);
+      }
+    } else if ((!best_join->build_side_unique || best_join->num_join_attributes > 1) &&
         selected_probe_table_info->estimated_cardinality < selected_build_table_info->estimated_cardinality) {
       std::swap(selected_probe_table_info, selected_build_table_info);
     }
+//    std::cerr << "--------\n\n";
 
 //    std::cerr << selected_probe_table_info->estimated_selectivity
 //              << " -- "
@@ -326,7 +337,6 @@ physical::PhysicalPtr StarSchemaHashJoinOrderOptimization::generatePlan(
       selected_probe_table_info->estimated_num_output_attributes =
           CountSharedAttributes(join_group.referenced_attributes,
                                 output->getOutputAttributes());
-      selected_probe_table_info->is_aggregation = false;
 
       remaining_tables.emplace(selected_probe_table_info);
 
@@ -362,6 +372,16 @@ std::size_t StarSchemaHashJoinOrderOptimization::CountSharedAttributes(
     }
   }
   return cnt;
+}
+
+std::size_t StarSchemaHashJoinOrderOptimization::getEstimatedNumGroups(
+    const physical::PhysicalPtr &input) {
+  P::AggregatePtr aggregate;
+  if (P::SomeAggregate::MatchesWithConditionalCast(input, &aggregate)) {
+    return cost_model_->estimateNumGroupsForAggregate(aggregate);
+  } else {
+    return 0;
+  }
 }
 
 

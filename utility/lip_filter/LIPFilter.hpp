@@ -60,6 +60,8 @@ class LIPFilter {
                                   std::vector<tuple_id> *batch,
                                   const std::size_t batch_size) const = 0;
 
+  virtual std::size_t onesCount() const = 0;
+
  protected:
   LIPFilter(const LIPFilterType &type)
       : type_(type) {

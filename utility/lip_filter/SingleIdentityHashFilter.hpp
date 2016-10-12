@@ -33,8 +33,9 @@
 #include "storage/ValueAccessor.hpp"
 #include "storage/ValueAccessorUtil.hpp"
 #include "types/Type.hpp"
-#include "utility/lip_filter/LIPFilter.hpp"
+#include "utility/BitManipulation.hpp"
 #include "utility/Macros.hpp"
+#include "utility/lip_filter/LIPFilter.hpp"
 
 #include "glog/logging.h"
 
@@ -86,6 +87,13 @@ class SingleIdentityHashFilter : public LIPFilter {
     });
   }
 
+  std::size_t onesCount() const override {
+    std::size_t count = 0;
+    for (std::size_t i = 0; i < bit_array_.size(); ++i) {
+      count += population_count<std::uint8_t>(bit_array_[i].load(std::memory_order_relaxed));
+    }
+    return count;
+  }
 
   /**
    * @brief Inserts a given value into the hash filter.
@@ -136,6 +144,9 @@ class SingleIdentityHashFilter : public LIPFilter {
       const tuple_id tid = batch->at(i);
       const void *value =
           accessor->template getUntypedValueAtAbsolutePosition(attr_id, tid);
+      if (is_attr_nullable && value == nullptr) {
+        continue;
+      }
       if (contains(value)) {
         batch->at(out_size) = tid;
         ++out_size;
@@ -143,7 +154,6 @@ class SingleIdentityHashFilter : public LIPFilter {
     }
     return out_size;
   }
-
 
   std::size_t filter_cardinality_;
   alignas(kCacheLineBytes) std::vector<std::atomic<std::uint8_t>> bit_array_;
